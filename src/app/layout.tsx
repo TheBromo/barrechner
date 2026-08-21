@@ -1,8 +1,9 @@
 import type { Metadata, Viewport } from "next";
+import { platformOrigin } from "@/lib/urls";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(`https://${process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "barrechner.ch"}`),
+  metadataBase: new URL(platformOrigin()),
   title: { default: "Barrechner – Schnell kassieren am Fest", template: "%s · Barrechner" },
   description: "Der schnelle, anpassbare und offline-fähige Preisrechner für Vereinsfeste und kleine Bars.",
   applicationName: "Barrechner",

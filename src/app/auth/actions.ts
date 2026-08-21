@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { logError } from "@/lib/log";
+import { platformOrigin } from "@/lib/urls";
 
 export type AuthState = { error?: string; success?: string } | null;
 
@@ -34,7 +35,7 @@ export async function signUpAction(_state: AuthState, formData: FormData): Promi
   try {
     await enforceRateLimit("signup", 5, 60 * 60);
     const { email, password } = credentials(formData);
-    const origin = (await headers()).get("origin") ?? `https://${process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "barrechner.ch"}`;
+    const origin = (await headers()).get("origin") ?? platformOrigin();
     const supabase = await createSupabaseServerClient();
     const { error } = await supabase.auth.signUp({
       email,
@@ -54,7 +55,7 @@ export async function requestPasswordResetAction(_state: AuthState, formData: Fo
     await enforceRateLimit("password-reset", 4, 60 * 60);
     const email = String(formData.get("email") ?? "").trim().toLowerCase();
     if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error("Bitte eine gültige E-Mail-Adresse eingeben.");
-    const origin = (await headers()).get("origin") ?? `https://${process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "barrechner.ch"}`;
+    const origin = (await headers()).get("origin") ?? platformOrigin();
     const supabase = await createSupabaseServerClient();
     const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${origin}/auth/callback?next=/passwort-neu` });
     if (error) throw error;

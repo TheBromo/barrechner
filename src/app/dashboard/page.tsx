@@ -1,14 +1,14 @@
 import Link from "next/link";
 import { archiveBarAction, restoreBarAction } from "@/app/dashboard/actions";
 import { listOwnedBars } from "@/lib/data";
-import { tenantOrigin } from "@/lib/urls";
+import { configuredRootDomain, tenantOrigin } from "@/lib/urls";
 
 export default async function DashboardPage() {
   const bars = await listOwnedBars();
   const active = bars.filter((bar) => bar.status === "active");
   const archived = bars.filter((bar) => bar.status === "archived");
   const remaining = Math.max(0, 5 - active.length);
-  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "barrechner.ch";
+  const rootDomain = configuredRootDomain();
 
   return (
     <main className="mx-auto w-full max-w-6xl px-5 py-10 sm:px-8">

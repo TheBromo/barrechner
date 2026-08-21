@@ -1,10 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { resolveHost } from "@/lib/hostname";
 import { refreshAuthSession } from "@/lib/supabase/proxy";
+import { configuredRootDomain } from "@/lib/urls";
 
 export async function proxy(request: NextRequest) {
   const host = request.headers.get("host") ?? "";
-  const root = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "barrechner.ch";
+  const root = configuredRootDomain();
   if (host.replace(/:\d+$/, "").toLowerCase() === `www.${root}`) {
     return NextResponse.redirect(new URL(request.nextUrl.pathname + request.nextUrl.search, `https://${root}`), 308);
   }

@@ -1,12 +1,14 @@
+import { configuredRootDomain } from "./urls";
+
 export type HostContext = { kind: "platform" } | { kind: "tenant"; slug: string };
 
 export function hostnameWithoutPort(host: string): string {
   return host.trim().toLowerCase().replace(/:\d+$/, "").replace(/\.$/, "");
 }
 
-export function resolveHost(hostHeader: string, rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "barrechner.ch"): HostContext {
+export function resolveHost(hostHeader: string, rootDomain = configuredRootDomain()): HostContext {
   const host = hostnameWithoutPort(hostHeader);
-  const root = hostnameWithoutPort(rootDomain);
+  const root = configuredRootDomain(rootDomain);
   if (!host || host === root || host === `www.${root}` || host.endsWith(".vercel.app")) {
     return { kind: "platform" };
   }

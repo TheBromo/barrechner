@@ -1,15 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { resolveServerSupabaseConfig } from "@/lib/supabase/config";
 
 export async function refreshAuthSession(request: NextRequest, response: NextResponse) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key =
-    process.env.NEXT_PUBLIC_supabase_SUPABASE_PUBLISHABLE_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-    process.env.NEXT_PUBLIC_supabase_SUPABASE_ANON_KEY;
-  if (!url || !key) return response;
+  const config = resolveServerSupabaseConfig(process.env);
+  if (!config) return response;
 
-  const supabase = createServerClient(url, key, {
+  const supabase = createServerClient(config.url, config.publishableKey, {
     cookies: {
       getAll: () => request.cookies.getAll(),
       setAll(cookiesToSet) {

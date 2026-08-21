@@ -1,17 +1,14 @@
 import "server-only";
+import { resolveServerSupabaseConfig } from "@/lib/supabase/config";
 
 type PublicEnv = { url: string; publishableKey: string };
 
 export function publicSupabaseEnv(): PublicEnv {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const publishableKey =
-    process.env.NEXT_PUBLIC_supabase_SUPABASE_PUBLISHABLE_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-    process.env.NEXT_PUBLIC_supabase_SUPABASE_ANON_KEY;
-  if (!url || !publishableKey) {
+  const config = resolveServerSupabaseConfig(process.env);
+  if (!config) {
     throw new Error("Supabase ist nicht konfiguriert. Bitte .env.local gemäss .env.example ergänzen.");
   }
-  return { url, publishableKey };
+  return config;
 }
 
 export function serverAdminKey(): string {

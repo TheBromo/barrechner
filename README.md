@@ -15,7 +15,7 @@ Multi-Tenant-Preisrechner für Vereinsfeste und kleine Bars. Besitzer verwalten 
 1. Ein Supabase-Projekt erstellen.
 2. Die Migration in `supabase/migrations/20260820000000_initial.sql` ausführen (`supabase db push` mit verknüpftem Projekt).
 3. `.env.example` nach `.env.local` kopieren und die Werte eintragen.
-4. In Supabase Auth die Site URL und Redirect URLs für `http://localhost:3000/auth/callback` sowie die Produktionsdomain eintragen.
+4. In Supabase Auth die Site URL und Redirect URLs für `http://localhost:3000/auth/callback` sowie die Produktionsdomain eintragen. Die App verschickt und prüft einen eigenen Bestätigungslink, damit neue Konten vorher 30 Tage lang genutzt werden können.
 5. Abhängigkeiten installieren und starten:
 
 ```bash

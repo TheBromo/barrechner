@@ -3,9 +3,14 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { logError } from "@/lib/log";
 import { platformOrigin } from "@/lib/urls";
+import {
+  EMAIL_VERIFICATION_REQUIRED_BY_KEY,
+  emailVerificationRequiredBy,
+} from "@/lib/email-verification";
 
 export type AuthState = { error?: string; success?: string } | null;
 
@@ -15,6 +20,17 @@ function credentials(formData: FormData) {
   if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error("Bitte eine gültige E-Mail-Adresse eingeben.");
   if (password.length < 8) throw new Error("Das Passwort muss mindestens 8 Zeichen lang sein.");
   return { email, password };
+}
+
+async function sendEmailVerification(email: string, origin: string) {
+  const supabase = await createSupabaseServerClient();
+  return supabase.auth.signInWithOtp({
+    email,
+    options: {
+      shouldCreateUser: false,
+      emailRedirectTo: `${origin}/auth/callback?next=/dashboard&verify_email=1`,
+    },
+  });
 }
 
 export async function signInAction(_state: AuthState, formData: FormData): Promise<AuthState> {
@@ -36,18 +52,49 @@ export async function signUpAction(_state: AuthState, formData: FormData): Promi
     await enforceRateLimit("signup", 5, 60 * 60);
     const { email, password } = credentials(formData);
     const origin = (await headers()).get("origin") ?? platformOrigin();
-    const supabase = await createSupabaseServerClient();
-    const { error } = await supabase.auth.signUp({
+    const admin = createSupabaseAdminClient();
+    const requiredBy = emailVerificationRequiredBy(new Date().toISOString()).toISOString();
+    const { data: created, error: createError } = await admin.auth.admin.createUser({
       email,
       password,
-      options: { emailRedirectTo: `${origin}/auth/callback?next=/dashboard` },
+      email_confirm: true,
+      app_metadata: { [EMAIL_VERIFICATION_REQUIRED_BY_KEY]: requiredBy },
     });
-    if (error) throw error;
-    return { success: "Fast geschafft: Bitte bestätige deine E-Mail-Adresse." };
+    if (createError || !created.user) {
+      if (createError?.code === "email_exists" || createError?.code === "user_already_exists") {
+        return { error: "Für diese E-Mail-Adresse besteht bereits ein Konto." };
+      }
+      throw createError ?? new Error("Das Konto konnte nicht erstellt werden.");
+    }
+
+    const supabase = await createSupabaseServerClient();
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    if (signInError) throw signInError;
+
+    const { error: emailError } = await sendEmailVerification(email, origin);
+    if (emailError) logError("auth.verification_email", emailError);
   } catch (error) {
     logError("auth.sign_up", error);
     return { error: error instanceof Error ? error.message : "Registrierung fehlgeschlagen." };
   }
+  redirect("/dashboard");
+}
+
+export async function resendEmailVerificationAction() {
+  let destination = "/email-bestaetigen?status=gesendet";
+  try {
+    await enforceRateLimit("email-verification", 4, 60 * 60);
+    const supabase = await createSupabaseServerClient();
+    const { data, error: userError } = await supabase.auth.getUser();
+    if (userError || !data.user?.email) redirect("/anmelden");
+    const origin = (await headers()).get("origin") ?? platformOrigin();
+    const { error } = await sendEmailVerification(data.user.email, origin);
+    if (error) throw error;
+  } catch (error) {
+    logError("auth.verification_resend", error);
+    destination = "/email-bestaetigen?status=fehler";
+  }
+  redirect(destination);
 }
 
 export async function requestPasswordResetAction(_state: AuthState, formData: FormData): Promise<AuthState> {
@@ -57,7 +104,9 @@ export async function requestPasswordResetAction(_state: AuthState, formData: Fo
     if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error("Bitte eine gültige E-Mail-Adresse eingeben.");
     const origin = (await headers()).get("origin") ?? platformOrigin();
     const supabase = await createSupabaseServerClient();
-    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${origin}/auth/callback?next=/passwort-neu` });
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${origin}/auth/callback?next=/passwort-neu&verify_email=1`,
+    });
     if (error) throw error;
     return { success: "Falls ein Konto existiert, haben wir einen Link gesendet." };
   } catch (error) {

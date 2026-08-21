@@ -7,12 +7,14 @@ export function starterConfig(displayName = "Meine Bar"): BarConfig {
     updatedAt: new Date().toISOString(),
     displayName,
     logoUrl: "",
+    logoEmoji: "",
     theme: { background: "#101a17", accent: "#f3ba45" },
     categories: [
       {
         id: "bier",
         name: "Bier",
         image: "",
+        emoji: "🍺",
         drinks: [
           { id: "lager", name: "Lager", active: true, variants: [{ id: "3dl", label: "3 dl", price: 500 }] },
           { id: "panache", name: "Panaché", active: true, variants: [{ id: "3dl", label: "3 dl", price: 500 }] },
@@ -22,6 +24,7 @@ export function starterConfig(displayName = "Meine Bar"): BarConfig {
         id: "wein",
         name: "Wein",
         image: "",
+        emoji: "🍷",
         drinks: [
           {
             id: "weisswein",
@@ -38,6 +41,7 @@ export function starterConfig(displayName = "Meine Bar"): BarConfig {
         id: "alkoholfrei",
         name: "Alkoholfrei",
         image: "",
+        emoji: "🥤",
         drinks: [
           { id: "wasser", name: "Mineralwasser", active: true, variants: [{ id: "3dl", label: "3 dl", price: 300 }] },
           { id: "softdrink", name: "Softdrink", active: true, variants: [{ id: "3dl", label: "3 dl", price: 400 }] },

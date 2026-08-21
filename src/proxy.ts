@@ -16,7 +16,11 @@ export async function proxy(request: NextRequest) {
     return NextResponse.rewrite(url);
   }
   if (context.kind === "tenant" && request.nextUrl.pathname.startsWith("/b/")) return new NextResponse(null, { status: 404 });
-  if (request.nextUrl.pathname.startsWith("/dashboard") || request.nextUrl.pathname.startsWith("/auth")) {
+  if (
+    request.nextUrl.pathname.startsWith("/dashboard") ||
+    request.nextUrl.pathname.startsWith("/auth") ||
+    request.nextUrl.pathname.startsWith("/email-bestaetigen")
+  ) {
     return refreshAuthSession(request, NextResponse.next());
   }
   return NextResponse.next();

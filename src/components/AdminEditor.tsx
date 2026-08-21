@@ -13,10 +13,15 @@ import {
   uploadAssetAction,
 } from "@/app/dashboard/actions";
 import { tenantOrigin } from "@/lib/urls";
+import { isSingleEmoji } from "@/lib/types";
 
 type DraftVariant = { id: string; label: string; price: string };
 type DraftDrink = { id: string; name: string; note: string; active: boolean; variants: DraftVariant[] };
-type DraftCategory = { id: string; name: string; image: string; drinks: DraftDrink[] };
+type DraftCategory = { id: string; name: string; image: string; emoji: string; drinks: DraftDrink[] };
+type IconValue = { image: string; emoji: string };
+
+const LOGO_EMOJIS = ["🍺", "🍻", "🍷", "🍹", "🥂", "🎉", "🎪", "🎸", "⭐", "❤️", "🔥", "🏔️"];
+const CATEGORY_EMOJIS = ["🍺", "🍷", "🥂", "🍹", "🥤", "☕", "🍵", "🧃", "💧", "🥨", "🍕", "🍔"];
 
 function id(prefix: string) { return `${prefix}-${crypto.randomUUID().slice(0, 8)}`; }
 function move<T>(items: T[], from: number, to: number) {
@@ -29,6 +34,7 @@ function move<T>(items: T[], from: number, to: number) {
 function draftCategories(config: BarConfig): DraftCategory[] {
   return config.categories.map((category) => ({
     ...category,
+    emoji: category.emoji ?? "",
     drinks: category.drinks.map((drink) => ({
       ...drink,
       note: drink.note ?? "",
@@ -41,6 +47,7 @@ export default function AdminEditor({ menu, barId, slug, publishedRevision }: { 
   const router = useRouter();
   const [name, setName] = useState(menu.displayName);
   const [logoUrl, setLogoUrl] = useState(menu.logoUrl);
+  const [logoEmoji, setLogoEmoji] = useState(menu.logoEmoji ?? "");
   const [background, setBackground] = useState(menu.theme.background);
   const [accent, setAccent] = useState(menu.theme.accent);
   const [nextSlug, setNextSlug] = useState(slug);
@@ -61,6 +68,7 @@ export default function AdminEditor({ menu, barId, slug, publishedRevision }: { 
       ...menu,
       displayName: name,
       logoUrl,
+      logoEmoji,
       theme: { background, accent },
       categories: categories.map((category) => ({
         ...category,
@@ -134,8 +142,8 @@ export default function AdminEditor({ menu, barId, slug, publishedRevision }: { 
       <section className="editor-panel mt-8">
         <div className="section-heading"><span>01</span><div><h2>Auftritt</h2><p>Name, Logo und Farben des Rechners.</p></div></div>
         <div className="mt-6 grid gap-5 sm:grid-cols-2">
-          <label className="field-label">Sichtbarer Barname<input value={name} onChange={(event) => { setName(event.target.value); changed(); }} className="field-input" maxLength={80} /></label>
-          <ImageUpload label="Logo" value={logoUrl} barId={barId} kind="logo" onChange={(url) => { setLogoUrl(url); changed(); }} />
+          <label className="field-label self-start">Sichtbarer Barname<input value={name} onChange={(event) => { setName(event.target.value); changed(); }} className="field-input" maxLength={80} /></label>
+          <IconEditor label="Logo" value={{ image: logoUrl, emoji: logoEmoji }} barId={barId} kind="logo" onChange={(value) => { setLogoUrl(value.image); setLogoEmoji(value.emoji); changed(); }} />
           <label className="color-field"><input type="color" value={background} onChange={(event) => { setBackground(event.target.value); changed(); }} /><span><strong>Grundfarbe</strong><small>{background}</small></span></label>
           <label className="color-field"><input type="color" value={accent} onChange={(event) => { setAccent(event.target.value); changed(); }} /><span><strong>Akzentfarbe</strong><small>{accent}</small></span></label>
         </div>
@@ -154,7 +162,7 @@ export default function AdminEditor({ menu, barId, slug, publishedRevision }: { 
             onMove={(direction) => { setCategories((all) => move(all, categoryIndex, categoryIndex + direction)); changed(); }}
             onDelete={() => { if (window.confirm("Kategorie wirklich löschen?")) { setCategories((all) => all.filter((item) => item.id !== category.id)); changed(); } }} />
         ))}
-        <button onClick={() => { setCategories((all) => [...all, { id: id("cat"), name: "Neue Kategorie", image: "", drinks: [] }]); changed(); }} className="add-button">＋ Kategorie hinzufügen</button>
+        <button onClick={() => { setCategories((all) => [...all, { id: id("cat"), name: "Neue Kategorie", image: "", emoji: "🍹", drinks: [] }]); changed(); }} className="add-button">＋ Kategorie hinzufügen</button>
       </section>
 
       <div className="editor-footer"><div className={`editor-message ${message?.type ?? ""}`}>{message?.text ?? (dirty ? "Änderungen noch nicht gespeichert" : "Entwurf ist gespeichert")}</div>{publishedRevision && <button disabled={pending} onClick={discard} className="text-button">Entwurf verwerfen</button>}<button disabled={pending || !dirty} onClick={save} className="secondary-button">{pending ? "Bitte warten…" : "Entwurf speichern"}</button><button disabled={pending} onClick={publish} className="primary-button">Veröffentlichen</button></div>
@@ -169,7 +177,7 @@ function CategoryEditor({ category, barId, onChange, onMove, onDelete }: { categ
         <input value={category.name} onChange={(event) => onChange({ ...category, name: event.target.value })} className="field-input min-w-52 flex-1 text-lg font-bold" />
         <button onClick={() => onMove(-1)} className="icon-button" aria-label="Nach oben">↑</button><button onClick={() => onMove(1)} className="icon-button" aria-label="Nach unten">↓</button><button onClick={onDelete} className="icon-button danger" aria-label="Kategorie löschen">×</button>
       </div>
-      <div className="mt-3"><ImageUpload label="Kategoriebild" value={category.image} barId={barId} kind="category" compact onChange={(image) => onChange({ ...category, image })} /></div>
+      <div className="mt-3"><IconEditor label="Kategorie-Icon" value={{ image: category.image, emoji: category.emoji }} barId={barId} kind="category" compact onChange={(value) => onChange({ ...category, image: value.image, emoji: value.emoji })} /></div>
       <div className="mt-4 space-y-3">
         {category.drinks.map((drink, drinkIndex) => <DrinkEditor key={drink.id} drink={drink}
           onChange={(next) => onChange({ ...category, drinks: category.drinks.map((item) => item.id === drink.id ? next : item) })}
@@ -196,26 +204,61 @@ function DrinkEditor({ drink, onChange, onMove, onDelete }: { drink: DraftDrink;
   );
 }
 
-function ImageUpload({ label, value, barId, kind, compact = false, onChange }: { label: string; value: string; barId: string; kind: "logo" | "category"; compact?: boolean; onChange: (url: string) => void }) {
+export function IconEditor({ label, value, barId, kind, compact = false, onChange }: { label: string; value: IconValue; barId: string; kind: "logo" | "category"; compact?: boolean; onChange: (value: IconValue) => void }) {
   const input = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [customEmoji, setCustomEmoji] = useState(value.emoji);
+  const [emojiError, setEmojiError] = useState("");
+
+  function chooseEmoji(emoji: string) {
+    setCustomEmoji(emoji);
+    setEmojiError("");
+    onChange({ image: "", emoji });
+  }
+
+  function updateCustomEmoji(emoji: string) {
+    setCustomEmoji(emoji);
+    if (!emoji.trim()) {
+      setEmojiError("");
+      onChange({ image: "", emoji: "" });
+    } else if (isSingleEmoji(emoji)) {
+      setEmojiError("");
+      onChange({ image: "", emoji: emoji.trim() });
+    } else {
+      setEmojiError("Bitte genau ein Emoji eingeben.");
+    }
+  }
+
   async function upload(file: File) {
     setUploading(true);
     const data = new FormData(); data.set("file", file);
     const result = await uploadAssetAction(barId, kind, data);
     setUploading(false);
     if ("error" in result) { window.alert(result.error); return; }
-    onChange(result.url);
+    setCustomEmoji("");
+    setEmojiError("");
+    onChange({ image: result.url, emoji: "" });
   }
+  const emojis = kind === "logo" ? LOGO_EMOJIS : CATEGORY_EMOJIS;
   return (
-    <div className={`image-upload ${compact ? "compact" : ""}`}>
-      <button type="button" onClick={() => input.current?.click()} className="image-preview">
-        {value ? (
+    <div className={`icon-editor ${compact ? "compact" : ""}`}>
+      <div className="image-preview" aria-label={`${label} Vorschau`}>
+        {value.image ? (
           // eslint-disable-next-line @next/next/no-img-element -- tenant storage host is dynamic.
-          <img src={value} alt="" />
-        ) : <span>{kind === "logo" ? "B" : "◇"}</span>}
-      </button>
-      <div><strong>{label}</strong><p>PNG, JPEG oder WebP · max. 4 MB</p><button type="button" disabled={uploading} onClick={() => input.current?.click()} className="text-button">{uploading ? "Wird verarbeitet…" : value ? "Bild ersetzen" : "Bild hochladen"}</button>{value && <button type="button" onClick={() => onChange("")} className="text-button danger ml-3">Entfernen</button>}</div>
+          <img src={value.image} alt="" />
+        ) : value.emoji ? <span className="icon-preview-emoji">{value.emoji}</span> : <span>{kind === "logo" ? "B" : "◇"}</span>}
+      </div>
+      <div className="min-w-0 flex-1">
+        <strong>{label}</strong>
+        <div className="emoji-palette" aria-label={`${label}: Emoji auswählen`}>
+          {emojis.map((emoji) => <button key={emoji} type="button" onClick={() => chooseEmoji(emoji)} className={value.emoji === emoji ? "selected" : ""} aria-label={`${emoji} auswählen`} aria-pressed={value.emoji === emoji}>{emoji}</button>)}
+        </div>
+        <label className="custom-emoji-label">Eigenes Emoji<input value={customEmoji} onChange={(event) => updateCustomEmoji(event.target.value)} inputMode="text" maxLength={32} placeholder="🙂" aria-invalid={Boolean(emojiError)} /></label>
+        {emojiError && <p className="icon-error">{emojiError}</p>}
+        <p>Oder PNG, JPEG oder WebP hochladen · max. 4 MB</p>
+        <button type="button" disabled={uploading} onClick={() => input.current?.click()} className="text-button">{uploading ? "Wird verarbeitet…" : value.image ? "Bild ersetzen" : "Bild hochladen"}</button>
+        {(value.image || value.emoji) && <button type="button" onClick={() => { setCustomEmoji(""); setEmojiError(""); onChange({ image: "", emoji: "" }); }} className="text-button danger ml-3">Entfernen</button>}
+      </div>
       <input ref={input} type="file" hidden accept="image/png,image/jpeg,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); }} />
     </div>
   );

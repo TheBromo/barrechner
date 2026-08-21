@@ -95,15 +95,15 @@ export default function Calculator({ menu, slug, preview = false }: { menu: Menu
       <header className="flex items-center gap-3 px-4 pt-3 pb-2">
         {/* Uploaded tenant assets can live on the configured Supabase storage host. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        {menu.logoUrl ? <img src={menu.logoUrl} alt="" className="h-9 w-9 rounded-lg object-cover" /> : <span className="calculator-logo">{menu.displayName.slice(0, 1).toUpperCase()}</span>}
+        {menu.logoUrl ? <img src={menu.logoUrl} alt="" className="h-9 w-9 rounded-lg object-cover" /> : <span className="calculator-logo">{menu.logoEmoji || menu.displayName.slice(0, 1).toUpperCase()}</span>}
         <div className="flex-1">
           <h1 className="text-lg font-bold leading-none tracking-wide">{menu.displayName}</h1>
-          <p className="mt-0.5 text-[11px] opacity-50">Barrechner</p>
+          <p className="theme-muted mt-0.5 text-[11px]">Barrechner</p>
         </div>
         <Link
           href={preview ? "/dashboard" : `${platformOrigin()}/dashboard`}
           aria-label="Bar verwalten"
-          className="rounded-lg p-2 opacity-40 transition-opacity hover:opacity-80"
+          className="theme-muted rounded-lg p-2 transition-colors hover:text-[var(--bar-text)]"
         >
           <GearIcon />
         </Link>
@@ -122,7 +122,7 @@ export default function Calculator({ menu, slug, preview = false }: { menu: Menu
         ))}
       </nav>
 
-      <main className="flex-1 overflow-y-auto border-t border-white/5 px-3 pt-3 pb-6">
+      <main className="theme-border flex-1 overflow-y-auto border-t px-3 pt-3 pb-6">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
           {category?.drinks
             .filter((d) => d.active)
@@ -141,8 +141,8 @@ export default function Calculator({ menu, slug, preview = false }: { menu: Menu
       </main>
 
       {sheetOpen && count > 0 && (
-        <section className="max-h-[45dvh] overflow-y-auto border-t border-white/10 bg-board-900">
-          <p className="px-4 pt-3 pb-1 text-[11px] text-white/40">
+        <section className="theme-border max-h-[45dvh] overflow-y-auto border-t bg-board-900">
+          <p className="theme-muted px-4 pt-3 pb-1 text-[11px]">
             Tippe uf ä Zilä zum eis wägnäh
           </p>
           <ul>
@@ -150,14 +150,14 @@ export default function Calculator({ menu, slug, preview = false }: { menu: Menu
               <li key={line.key}>
                 <button
                   onClick={() => removeOne(line.key)}
-                  className="flex w-full items-center gap-3 border-b border-white/5 px-4 py-3 text-left transition-colors active:bg-board-700"
+                  className="theme-border flex w-full items-center gap-3 border-b px-4 py-3 text-left transition-colors active:bg-board-700"
                 >
                   <span className="min-w-9 rounded-md bg-board-700 px-1.5 py-1 text-center text-sm font-bold tabular-nums text-amber-400">
                     {line.qty}×
                   </span>
                   <span className="flex-1 leading-tight">
                     <span className="block text-[15px] font-medium">{line.drinkName}</span>
-                    <span className="block text-xs text-white/45">
+                    <span className="theme-muted block text-xs">
                       {line.variantLabel} · {formatPrice(line.price)}
                     </span>
                   </span>
@@ -174,8 +174,8 @@ export default function Calculator({ menu, slug, preview = false }: { menu: Menu
               onClick={clearOrder}
               className={`w-full rounded-xl border px-4 py-3 text-sm font-semibold transition-colors ${
                 confirmClear
-                  ? "border-red-500 bg-red-500/20 text-red-300"
-                  : "border-white/10 text-white/60 active:bg-board-700"
+                  ? "theme-danger theme-danger-surface"
+                  : "theme-border theme-muted active:bg-board-700"
               }`}
             >
               {confirmClear ? "Würkli? Nomal tippe zum lösche" : "Alles lösche"}
@@ -184,19 +184,19 @@ export default function Calculator({ menu, slug, preview = false }: { menu: Menu
         </section>
       )}
 
-      <footer className="border-t border-white/10 bg-board-900 pb-safe">
+      <footer className="theme-border border-t bg-board-900 pb-safe">
         <button
           onClick={() => count > 0 && setSheetOpen((o) => !o)}
           className="flex w-full items-center gap-3 px-4 py-3 text-left"
         >
           <span
             className={`flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-sm font-bold tabular-nums ${
-              count > 0 ? "bg-amber-400 text-board-950" : "bg-board-700 text-white/40"
+              count > 0 ? "bg-amber-400 text-board-950" : "theme-muted bg-board-700"
             }`}
           >
             {count}
           </span>
-          <span className="flex-1 text-sm text-white/50">
+          <span className="theme-muted flex-1 text-sm">
             {count === 0 ? "Kei Artikel — tipp uf es Getränk" : sheetOpen ? "Zuäklappe" : "Bstellig aaluege"}
           </span>
           <span className="text-3xl font-bold tabular-nums tracking-tight text-amber-400">
@@ -224,12 +224,14 @@ function CategoryChip({
       className={`flex shrink-0 flex-col items-center gap-1 rounded-xl border px-3.5 pt-2.5 pb-1.5 transition-colors ${
         active
           ? "category-chip-active bg-board-800 text-chalk"
-          : "border-white/10 text-white/55 active:bg-board-800"
+          : "theme-border theme-muted active:bg-board-800"
       }`}
     >
       {category.image ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={category.image} alt="" className="h-10 w-10 object-contain" />
+      ) : category.emoji ? (
+        <span className="flex h-10 w-10 items-center justify-center text-2xl" aria-hidden>{category.emoji}</span>
       ) : (
         <span className="flex h-10 w-10 items-center justify-center text-lg">🍹</span>
       )}
@@ -252,7 +254,7 @@ function DrinkButton({
   return (
     <button
       onClick={onAdd}
-      className="relative flex min-h-24 flex-col justify-between rounded-xl border border-white/10 bg-board-900 p-3 text-left transition-[background-color,transform] duration-75 active:scale-[0.97] active:bg-board-700"
+      className="theme-border relative flex min-h-24 flex-col justify-between rounded-xl border bg-board-900 p-3 text-left transition-[background-color,transform] duration-75 active:scale-[0.97] active:bg-board-700"
     >
       {qty > 0 && (
         <span className="absolute -top-1.5 -right-1.5 flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-400 px-1.5 text-[13px] font-bold tabular-nums text-board-950">
@@ -262,11 +264,11 @@ function DrinkButton({
       <span>
         <span className="block text-[15px] font-semibold leading-tight">{drink.name}</span>
         {drink.note && (
-          <span className="mt-0.5 line-clamp-1 block text-[11px] text-white/40">{drink.note}</span>
+          <span className="theme-muted mt-0.5 line-clamp-1 block text-[11px]">{drink.note}</span>
         )}
       </span>
       <span className="mt-2 flex items-baseline justify-between">
-        <span className="text-xs font-medium text-white/50">{variant.label}</span>
+        <span className="theme-muted text-xs font-medium">{variant.label}</span>
         <span className="text-lg font-bold tabular-nums text-amber-400">
           {formatPrice(variant.price)}
         </span>
@@ -286,7 +288,7 @@ function GearIcon() {
 
 function MinusIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="text-red-400/70" aria-hidden>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="theme-danger" aria-hidden>
       <circle cx="12" cy="12" r="10" strokeWidth="1.5" />
       <line x1="8" y1="12" x2="16" y2="12" />
     </svg>
@@ -304,7 +306,7 @@ function ChevronIcon({ open, muted }: { open: boolean; muted: boolean }) {
       strokeWidth="2.5"
       strokeLinecap="round"
       strokeLinejoin="round"
-      className={`transition-transform ${open ? "rotate-180" : ""} ${muted ? "text-white/20" : "text-white/50"}`}
+      className={`theme-muted transition-transform ${open ? "rotate-180" : ""} ${muted ? "invisible" : ""}`}
       aria-hidden
     >
       <polyline points="18 15 12 9 6 15" />

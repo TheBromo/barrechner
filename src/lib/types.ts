@@ -17,6 +17,7 @@ export type Category = {
   id: string;
   name: string;
   image: string;
+  emoji: string;
   drinks: Drink[];
 };
 
@@ -31,6 +32,7 @@ export type BarConfig = {
   updatedAt: string;
   displayName: string;
   logoUrl: string;
+  logoEmoji: string;
   theme: BarTheme;
   categories: Category[];
 };
@@ -52,6 +54,8 @@ export type BarSummary = {
 
 const MAX_PRICE = 10_000_000;
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+const EMOJI_CONTENT = /\p{Extended_Pictographic}|\p{Regional_Indicator}|\u20e3/u;
+const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
 function stringField(value: unknown, field: string, maxLength = 200): string {
   if (typeof value !== "string" || !value.trim()) {
@@ -75,6 +79,20 @@ function safeImage(value: unknown, field: string): string {
     throw new Error(`${field} ist keine gültige Bildadresse.`);
   }
   return image;
+}
+
+export function isSingleEmoji(value: string): boolean {
+  const emoji = value.trim();
+  if (!emoji || emoji.length > 32 || !EMOJI_CONTENT.test(emoji)) return false;
+  return Array.from(graphemeSegmenter.segment(emoji)).length === 1;
+}
+
+function safeEmoji(value: unknown, field: string): string {
+  if (value === "" || value == null) return "";
+  if (typeof value !== "string" || !isSingleEmoji(value)) {
+    throw new Error(`${field} muss genau ein Emoji sein.`);
+  }
+  return value.trim();
 }
 
 function safeColor(value: unknown, field: string): string {
@@ -103,10 +121,14 @@ export function sanitizeBarConfig(input: unknown): BarConfig {
     const categoryId = safeId(rawCategory.id, `${name}: ID`);
     if (categoryIds.has(categoryId)) throw new Error(`Doppelte Kategorie-ID: ${categoryId}.`);
     categoryIds.add(categoryId);
+    const image = safeImage(rawCategory.image, `${name}: Bild`);
+    const emoji = safeEmoji(rawCategory.emoji, `${name}: Emoji`);
+    if (image && emoji) throw new Error(`${name}: Bitte wähle entweder ein Emoji oder ein Bild.`);
     return {
       id: categoryId,
       name,
-      image: safeImage(rawCategory.image, `${name}: Bild`),
+      image,
+      emoji,
       drinks: rawCategory.drinks.map((drink, drinkIndex): Drink => {
         const rawDrink = (drink ?? {}) as Record<string, unknown>;
         const drinkName = stringField(rawDrink.name, `${name}, Getränk ${drinkIndex + 1}`, 100);
@@ -146,12 +168,17 @@ export function sanitizeBarConfig(input: unknown): BarConfig {
     };
   });
 
+  const logoUrl = safeImage(raw.logoUrl, "Logo");
+  const logoEmoji = safeEmoji(raw.logoEmoji, "Logo-Emoji");
+  if (logoUrl && logoEmoji) throw new Error("Logo: Bitte wähle entweder ein Emoji oder ein Bild.");
+
   return {
     schemaVersion: 1,
     revision: Number.isInteger(raw.revision) && Number(raw.revision) >= 0 ? Number(raw.revision) : 0,
     updatedAt: new Date().toISOString(),
     displayName: stringField(raw.displayName, "Barname", 80),
-    logoUrl: safeImage(raw.logoUrl, "Logo"),
+    logoUrl,
+    logoEmoji,
     theme: {
       background: safeColor((raw.theme as Record<string, unknown> | undefined)?.background, "Grundfarbe"),
       accent: safeColor((raw.theme as Record<string, unknown> | undefined)?.accent, "Akzentfarbe"),

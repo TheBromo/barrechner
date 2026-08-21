@@ -35,12 +35,12 @@ npm run build
 
 ## Vercel einrichten
 
-1. Alle Werte aus `.env.example` als Production- und Preview-Variablen setzen.
+1. Alle Werte aus `.env.example` als Production- und Preview-Variablen setzen. Bei einer Vercel-Supabase-Integration mit dem Ressourcenpräfix `supabase_` verwendet die App automatisch `NEXT_PUBLIC_supabase_SUPABASE_PUBLISHABLE_KEY` und `supabase_SUPABASE_SECRET_KEY`; die manuellen Standardnamen sind dann nicht zusätzlich nötig.
 2. `barrechner.ch`, `www.barrechner.ch` und `*.barrechner.ch` zum Projekt hinzufügen. Für das Wildcard-Zertifikat die von Vercel verlangten Nameserver verwenden.
 3. In Supabase die Produktions-Callback-URL `https://barrechner.ch/auth/callback` erlauben.
 4. `CRON_SECRET` muss in Vercel gesetzt sein; Vercel sendet ihn automatisch als Bearer-Token an den täglichen Cleanup-Endpunkt.
 
-Der Service-Role-Key wird ausschliesslich serverseitig verwendet und darf nie mit `NEXT_PUBLIC_` beginnen.
+Der Secret- beziehungsweise Service-Role-Key wird ausschliesslich serverseitig verwendet und darf nie mit `NEXT_PUBLIC_` beginnen. Neue `sb_secret_…`-Schlüssel werden gegenüber dem alten `service_role`-JWT bevorzugt.
 
 ## Datenmodell und Sicherheit
 

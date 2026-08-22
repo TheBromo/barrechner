@@ -12,15 +12,145 @@ import { normalizeSlug, validateSlug } from "@/lib/slug";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { sanitizeBarConfig } from "@/lib/types";
+import {
+  BAR_IMPORT_BUCKET,
+  MAX_IMPORT_BYTES,
+  detectImportMime,
+  extensionForImportMime,
+  isImportMimeType,
+  type ImportMimeType,
+  type ImportProposal,
+} from "@/lib/bar-import";
+import { importBarCard } from "@/lib/mistral-import";
 
 export type ActionState = { error?: string; success?: string } | null;
 export type SaveResult = { ok: true } | { ok: false; error: string };
 export type UploadResult = { url: string } | { error: string };
+export type PrepareImportResult =
+  | { ok: true; importId: string; path: string; token: string }
+  | { ok: false; error: string };
+export type ProcessImportResult =
+  | { ok: true; proposal: ImportProposal }
+  | { ok: false; error: string };
 
 function errorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : "Unbekannter Fehler";
   if (message.includes("duplicate key") || message.includes("bars_slug_key")) return "Diese Adresse ist bereits vergeben.";
   return message;
+}
+
+async function ownedBarExists(barId: string, userId: string): Promise<boolean> {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase.from("bars").select("id").eq("id", barId).eq("owner_id", userId).single();
+  return Boolean(data);
+}
+
+export async function prepareBarImportAction(
+  barId: string,
+  metadata: { name: string; size: number; type: string },
+): Promise<PrepareImportResult> {
+  try {
+    const user = await requireUser();
+    if (!isImportMimeType(metadata.type)) throw new Error("Erlaubt sind PDF, PNG, JPEG und WebP.");
+    if (!Number.isInteger(metadata.size) || metadata.size <= 0) throw new Error("Die Datei ist leer oder ungültig.");
+    if (metadata.size > MAX_IMPORT_BYTES) throw new Error("Die Datei ist grösser als 10 MB.");
+    if (!await ownedBarExists(barId, user.id)) throw new Error("Bar nicht gefunden.");
+
+    const importId = randomUUID();
+    const path = `${user.id}/${barId}/${importId}.${extensionForImportMime(metadata.type)}`;
+    const admin = createSupabaseAdminClient();
+    const { error: rowError } = await admin.from("bar_import_uploads").insert({
+      id: importId,
+      owner_id: user.id,
+      bar_id: barId,
+      storage_path: path,
+      original_name: String(metadata.name ?? "Barkarte").trim().slice(0, 160) || "Barkarte",
+      mime_type: metadata.type,
+      byte_size: metadata.size,
+      status: "pending",
+    });
+    if (rowError) throw rowError;
+
+    const { data, error } = await admin.storage.from(BAR_IMPORT_BUCKET).createSignedUploadUrl(path);
+    if (error || !data) {
+      await admin.from("bar_import_uploads").delete().eq("id", importId);
+      throw error ?? new Error("Upload konnte nicht vorbereitet werden.");
+    }
+    return { ok: true, importId, path: data.path, token: data.token };
+  } catch (error) {
+    logError("bar.import.prepare", error, { barId });
+    return { ok: false, error: errorMessage(error) };
+  }
+}
+
+export async function processBarImportAction(barId: string, importId: string): Promise<ProcessImportResult> {
+  let claimedPath = "";
+  const admin = createSupabaseAdminClient();
+  try {
+    const user = await requireUser();
+    await enforceRateLimit("bar-import", 10, 60 * 60);
+    if (!await ownedBarExists(barId, user.id)) throw new Error("Bar nicht gefunden.");
+
+    const { data: upload, error: claimError } = await admin
+      .from("bar_import_uploads")
+      .update({ status: "processing" })
+      .eq("id", importId)
+      .eq("bar_id", barId)
+      .eq("owner_id", user.id)
+      .eq("status", "pending")
+      .select("storage_path,mime_type,byte_size")
+      .maybeSingle();
+    if (claimError) throw claimError;
+    if (!upload) throw new Error("Dieser Import wurde bereits verarbeitet oder ist abgelaufen.");
+    claimedPath = upload.storage_path;
+
+    const { data: file, error: downloadError } = await admin.storage.from(BAR_IMPORT_BUCKET).download(claimedPath);
+    if (downloadError || !file) throw new Error("Die hochgeladene Datei konnte nicht gelesen werden.");
+    if (file.size <= 0 || file.size > MAX_IMPORT_BYTES) throw new Error("Die Datei ist leer oder grösser als 10 MB.");
+    if (file.size !== upload.byte_size) throw new Error("Die Dateigrösse stimmt nicht mit dem vorbereiteten Upload überein.");
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const detectedMime = detectImportMime(bytes);
+    if (!detectedMime || detectedMime !== upload.mime_type || !isImportMimeType(upload.mime_type)) {
+      throw new Error("Dateityp und Dateiinhalt stimmen nicht überein.");
+    }
+
+    const { data: signed, error: signedError } = await admin.storage.from(BAR_IMPORT_BUCKET).createSignedUrl(claimedPath, 5 * 60);
+    if (signedError || !signed) throw new Error("Die Datei konnte nicht für OCR vorbereitet werden.");
+    const proposal = await importBarCard(signed.signedUrl, detectedMime as ImportMimeType);
+    return { ok: true, proposal };
+  } catch (error) {
+    logError("bar.import.process", error, { barId, importId });
+    return { ok: false, error: errorMessage(error) };
+  } finally {
+    if (claimedPath) {
+      const { error: storageError } = await admin.storage.from(BAR_IMPORT_BUCKET).remove([claimedPath]);
+      if (storageError) logError("bar.import.cleanup.storage", storageError, { barId, importId });
+      // Signed upload tokens live for two hours and cannot be revoked. Keep a tombstone
+      // until the cleanup job removes it after token expiry, so the path cannot be processed twice.
+      const { error: rowError } = await admin.from("bar_import_uploads").update({ status: "processing" }).eq("id", importId);
+      if (rowError) logError("bar.import.cleanup.row", rowError, { barId, importId });
+    }
+  }
+}
+
+export async function cancelBarImportAction(barId: string, importId: string): Promise<void> {
+  try {
+    const user = await requireUser();
+    const admin = createSupabaseAdminClient();
+    const { data } = await admin
+      .from("bar_import_uploads")
+      .select("storage_path")
+      .eq("id", importId)
+      .eq("bar_id", barId)
+      .eq("owner_id", user.id)
+      .eq("status", "pending")
+      .maybeSingle();
+    if (!data) return;
+    await admin.storage.from(BAR_IMPORT_BUCKET).remove([data.storage_path]);
+    await admin.from("bar_import_uploads").update({ status: "processing" }).eq("id", importId).eq("owner_id", user.id);
+  } catch (error) {
+    logError("bar.import.cancel", error, { barId, importId });
+  }
 }
 
 export async function createBarAction(_state: ActionState, formData: FormData): Promise<ActionState> {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { BarConfig } from "@/lib/types";
+import type { ImportProposal } from "@/lib/bar-import";
 import { formatPrice, parsePrice } from "@/lib/format";
 import {
   discardDraftAction,
@@ -14,6 +15,7 @@ import {
 } from "@/app/dashboard/actions";
 import { tenantOrigin } from "@/lib/urls";
 import { isSingleEmoji } from "@/lib/types";
+import BarCardImporter from "./BarCardImporter";
 
 type DraftVariant = { id: string; label: string; price: string };
 type DraftDrink = { id: string; name: string; note: string; active: boolean; variants: DraftVariant[] };
@@ -43,6 +45,26 @@ function draftCategories(config: BarConfig): DraftCategory[] {
   }));
 }
 
+function importedDraftCategories(proposal: ImportProposal): DraftCategory[] {
+  return proposal.categories.map((category) => ({
+    id: category.id,
+    name: category.name,
+    image: "",
+    emoji: category.emoji,
+    drinks: category.items.map((item) => ({
+      id: item.id,
+      name: item.name,
+      note: item.note,
+      active: true,
+      variants: item.variants.map((variant) => ({
+        id: variant.id,
+        label: variant.label,
+        price: variant.price === null ? "" : (variant.price / 100).toFixed(2).replace(/\.00$/, ""),
+      })),
+    })),
+  }));
+}
+
 export default function AdminEditor({ menu, barId, slug, publishedRevision }: { menu: BarConfig; barId: string; slug: string; publishedRevision: number | null }) {
   const router = useRouter();
   const [name, setName] = useState(menu.displayName);
@@ -53,6 +75,7 @@ export default function AdminEditor({ menu, barId, slug, publishedRevision }: { 
   const [nextSlug, setNextSlug] = useState(slug);
   const [categories, setCategories] = useState(() => draftCategories(menu));
   const [dirty, setDirty] = useState(false);
+  const [categoriesDirty, setCategoriesDirty] = useState(false);
   const [message, setMessage] = useState<{ type: "ok" | "error"; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -63,6 +86,7 @@ export default function AdminEditor({ menu, barId, slug, publishedRevision }: { 
   }, [dirty]);
 
   function changed() { setDirty(true); setMessage(null); }
+  function categoriesChanged() { setCategoriesDirty(true); changed(); }
   function buildConfig(): BarConfig {
     return {
       ...menu,
@@ -91,6 +115,7 @@ export default function AdminEditor({ menu, barId, slug, publishedRevision }: { 
     const result = await saveDraftAction(barId, JSON.stringify(buildConfig()));
     if (!result.ok) throw new Error(result.error);
     setDirty(false);
+    setCategoriesDirty(false);
     return result;
   }
 
@@ -119,7 +144,7 @@ export default function AdminEditor({ menu, barId, slug, publishedRevision }: { 
     startTransition(async () => {
       const result = await discardDraftAction(barId);
       if (!result.ok) { setMessage({ type: "error", text: result.error }); return; }
-      setDirty(false); router.refresh();
+      setDirty(false); setCategoriesDirty(false); router.refresh();
     });
   }
 
@@ -130,6 +155,20 @@ export default function AdminEditor({ menu, barId, slug, publishedRevision }: { 
       setMessage({ type: "ok", text: "Adresse geändert. Die alte Adresse leitet 30 Tage weiter." });
       router.refresh();
     });
+  }
+
+  function applyImport(proposal: ImportProposal, mode: "replace" | "append"): boolean {
+    const imported = importedDraftCategories(proposal);
+    if (mode === "append" && categories.length + imported.length > 30) {
+      setMessage({ type: "error", text: "Mit dem Import wären mehr als 30 Kategorien vorhanden." });
+      return false;
+    }
+    if (mode === "replace" && categoriesDirty && !window.confirm("Ungespeicherte Änderungen an der Getränkekarte durch den Import ersetzen?")) return false;
+    setCategories(mode === "replace" ? imported : [...categories, ...imported]);
+    setCategoriesDirty(true);
+    setDirty(true);
+    setMessage({ type: "ok", text: "Import übernommen. Bitte prüfen und den Entwurf speichern." });
+    return true;
   }
 
   return (
@@ -156,13 +195,14 @@ export default function AdminEditor({ menu, barId, slug, publishedRevision }: { 
 
       <section className="mt-5 space-y-4">
         <div className="section-heading px-1"><span>03</span><div><h2>Getränkekarte</h2><p>Die Reihenfolge wird im Rechner übernommen.</p></div></div>
+        <BarCardImporter barId={barId} onApply={applyImport} />
         {categories.map((category, categoryIndex) => (
           <CategoryEditor key={category.id} category={category} barId={barId}
-            onChange={(next) => { setCategories((all) => all.map((item) => item.id === category.id ? next : item)); changed(); }}
-            onMove={(direction) => { setCategories((all) => move(all, categoryIndex, categoryIndex + direction)); changed(); }}
-            onDelete={() => { if (window.confirm("Kategorie wirklich löschen?")) { setCategories((all) => all.filter((item) => item.id !== category.id)); changed(); } }} />
+            onChange={(next) => { setCategories((all) => all.map((item) => item.id === category.id ? next : item)); categoriesChanged(); }}
+            onMove={(direction) => { setCategories((all) => move(all, categoryIndex, categoryIndex + direction)); categoriesChanged(); }}
+            onDelete={() => { if (window.confirm("Kategorie wirklich löschen?")) { setCategories((all) => all.filter((item) => item.id !== category.id)); categoriesChanged(); } }} />
         ))}
-        <button onClick={() => { setCategories((all) => [...all, { id: id("cat"), name: "Neue Kategorie", image: "", emoji: "🍹", drinks: [] }]); changed(); }} className="add-button">＋ Kategorie hinzufügen</button>
+        <button onClick={() => { setCategories((all) => [...all, { id: id("cat"), name: "Neue Kategorie", image: "", emoji: "🍹", drinks: [] }]); categoriesChanged(); }} className="add-button">＋ Kategorie hinzufügen</button>
       </section>
 
       <div className="editor-footer"><div className={`editor-message ${message?.type ?? ""}`}>{message?.text ?? (dirty ? "Änderungen noch nicht gespeichert" : "Entwurf ist gespeichert")}</div>{publishedRevision && <button disabled={pending} onClick={discard} className="text-button">Entwurf verwerfen</button>}<button disabled={pending || !dirty} onClick={save} className="secondary-button">{pending ? "Bitte warten…" : "Entwurf speichern"}</button><button disabled={pending} onClick={publish} className="primary-button">Veröffentlichen</button></div>

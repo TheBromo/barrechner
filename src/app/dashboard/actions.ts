@@ -34,7 +34,17 @@ export type ProcessImportResult =
   | { ok: false; error: string };
 
 function errorMessage(error: unknown): string {
-  const message = error instanceof Error ? error.message : "Unbekannter Fehler";
+  const record = error && typeof error === "object" ? error as { message?: unknown; code?: unknown } : null;
+  const message = error instanceof Error
+    ? error.message
+    : typeof record?.message === "string" && record.message.trim()
+      ? record.message.trim()
+      : "Unbekannter Fehler";
+  const code = typeof record?.code === "string" ? record.code : "";
+  if (
+    (code === "42P01" && message.includes("bar_import_uploads")) ||
+    /bucket.*not found|not found.*bucket/i.test(message)
+  ) return "Der Barkarten-Import ist in Supabase noch nicht eingerichtet. Bitte führe die aktuelle Migration aus.";
   if (message.includes("duplicate key") || message.includes("bars_slug_key")) return "Diese Adresse ist bereits vergeben.";
   return message;
 }

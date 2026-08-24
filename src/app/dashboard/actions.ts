@@ -42,7 +42,7 @@ function errorMessage(error: unknown): string {
       : "Unbekannter Fehler";
   const code = typeof record?.code === "string" ? record.code : "";
   if (
-    (code === "42P01" && message.includes("bar_import_uploads")) ||
+    ((code === "42P01" || code === "PGRST205" || /schema cache/i.test(message)) && message.includes("bar_import_uploads")) ||
     /bucket.*not found|not found.*bucket/i.test(message)
   ) return "Der Barkarten-Import ist in Supabase noch nicht eingerichtet. Bitte führe die aktuelle Migration aus.";
   if (message.includes("duplicate key") || message.includes("bars_slug_key")) return "Diese Adresse ist bereits vergeben.";

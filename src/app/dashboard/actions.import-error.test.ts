@@ -71,4 +71,26 @@ describe("bar import action errors", () => {
 
     expect(result).toEqual({ ok: false, error: "Speicher vorübergehend nicht erreichbar" });
   });
+
+  it("turns PostgREST schema-cache errors into a migration instruction", async () => {
+    mocks.adminFrom.mockReturnValue({
+      insert: vi.fn().mockResolvedValue({
+        error: {
+          message: "Could not find the table 'public.bar_import_uploads' in the schema cache",
+          code: "PGRST205",
+        },
+      }),
+    });
+
+    const result = await prepareBarImportAction("bar-1", {
+      name: "karte.pdf",
+      size: 100,
+      type: "application/pdf",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "Der Barkarten-Import ist in Supabase noch nicht eingerichtet. Bitte führe die aktuelle Migration aus.",
+    });
+  });
 });

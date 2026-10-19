@@ -27,10 +27,11 @@ export default Alchemy.Stack(
     const dev = yield* Alchemy.ALCHEMY_DEV;
     const production = stage === PRODUCTION_STAGE && !dev;
 
-    const rootDomain = yield* Config.String("ROOT_DOMAIN").pipe(Config.withDefault("barrechner.ch"));
+    // Empty values (e.g. an unset GitHub variable) fall back to the defaults.
+    const rootDomain = (yield* Config.String("ROOT_DOMAIN").pipe(Config.withDefault(""))).trim() || "barrechner.ch";
     const optionalSecret = (name: string) =>
       Config.option(Config.Redacted(name)).pipe(
-        Effect.map((value) => (Option.isSome(value) ? { [name]: value.value } : {})),
+        Effect.map((value) => (Option.isSome(value) && Redacted.value(value.value).trim() ? { [name]: value.value } : {})),
       );
     const secrets = Object.assign(
       {},
@@ -39,7 +40,7 @@ export default Alchemy.Stack(
     ) as Record<string, Redacted.Redacted<string>>;
     // Lets end-to-end tests sign up repeatedly from localhost; never honoured outside `alchemy dev`.
     const disableRateLimits = dev && (yield* Config.Boolean("DISABLE_RATE_LIMITS").pipe(Config.withDefault(false)));
-    const emailFrom = yield* Config.String("EMAIL_FROM").pipe(Config.withDefault(`Barrechner <noreply@${rootDomain}>`));
+    const emailFrom = (yield* Config.String("EMAIL_FROM").pipe(Config.withDefault(""))).trim() || `Barrechner <noreply@${rootDomain}>`;
 
     const db = yield* Cloudflare.D1.Database("Database", { migrations: "./migrations" });
     const images = yield* Cloudflare.R2.Bucket("Images");

@@ -15,5 +15,5 @@
     "types": ["@cloudflare/workers-types", "node", "vite/client", "vitest/globals", "@testing-library/jest-dom"],
     "paths": { "~/*": ["./src/*"] }
   },
-  "include": ["src", "test", "alchemy.run.ts", "vite.config.ts", "vitest.config.ts"]
+  "include": ["src", "test", "e2e", "stacks", "alchemy.run.ts", "playwright.config.ts", "vite.config.ts", "vitest.config.ts"]
 }

@@ -1,85 +1,164 @@
 # Barrechner.ch
 
-Multi-Tenant-Preisrechner für Vereinsfeste und kleine Bars. Besitzer verwalten bis zu fünf Bars auf `barrechner.ch`; jedes Barteam verwendet seinen öffentlichen, offline-fähigen Rechner unter `{barname}.barrechner.ch`.
+Multi-tenant price calculator for club festivals and small bars. Owners manage up to five bars on
+`barrechner.ch`; each bar team uses its public, offline-capable calculator on `{slug}.barrechner.ch`.
 
-## Technik
+The full product specification is in [SPEC.md](SPEC.md).
 
-- Next.js 16, React 19, TypeScript und Tailwind CSS 4
-- Supabase Auth, Postgres mit Row Level Security und Storage
-- Vercel Wildcard-Domain und täglicher Cleanup-Job
-- Unveränderliche Veröffentlichungen mit getrenntem Entwurf
-- Service Worker für den zuletzt geladenen Rechner
+## Stack
 
-## Lokal starten
+| Concern | Technology |
+| --- | --- |
+| UI & routing | [TanStack Start](https://tanstack.com/start) (React 19, TanStack Router, server functions), Tailwind CSS 4 |
+| Runtime | One Cloudflare Worker (SSR, server functions, image serving, daily Cron Trigger) |
+| Data | Cloudflare D1 (SQLite) — schema in [`migrations/`](migrations), applied on every deploy |
+| Images | Cloudflare R2, served by the Worker under `/img/…` |
+| Auth | Built in: PBKDF2 password hashes, opaque session cookies, single-use emailed links |
+| Email | [Resend](https://resend.com) HTTP API (logged to the console when not configured) |
+| Menu import | Mistral OCR + `mistral-small` with a strict JSON schema |
+| Infrastructure | [Alchemy](https://alchemy.run) v2 — everything is declared in [`alchemy.run.ts`](alchemy.run.ts) |
 
-1. Ein Supabase-Projekt erstellen.
-2. Alle Migrationen aus `supabase/migrations` ausführen (`supabase db push` mit verknüpftem Projekt).
-3. `.env.example` nach `.env.local` kopieren und die Werte eintragen.
-4. In Supabase Auth die Site URL und Redirect URLs für `http://localhost:3000/auth/callback` sowie die Produktionsdomain eintragen. Die App verschickt und prüft einen eigenen Bestätigungslink, damit neue Konten vorher 30 Tage lang genutzt werden können.
-5. Abhängigkeiten installieren und starten:
-
-```bash
-npm install
-npm run dev
+```
+alchemy.run.ts        Infrastructure: D1, R2, Worker, cron, prod routes + DNS
+stacks/github.ts      One-off stack that mints the CI API token and stores GitHub secrets
+migrations/           D1 schema
+src/server.ts         Worker entry: host routing, security headers, scheduled cleanup
+src/routes/           Pages and HTTP routes (file-based)
+src/functions/        Server functions called by pages (auth, bars, public)
+src/backend/          Server-only logic: repositories, services, auth, email, Mistral
+src/lib/              Shared, framework-free domain logic (validation, prices, theme, …)
+src/components/       Calculator, editor, importer, forms
+test/                 Vitest: domain, data layer (real SQL on node:sqlite), components
+e2e/                  Playwright flows against `alchemy dev`
 ```
 
-Die Plattform läuft unter `http://localhost:3000`, lokale Bars unter `http://{slug}.localhost:3000`.
+## Local development
 
-## Prüfen
-
-```bash
-npm test
-npm run lint
-npm run build
-```
-
-## Vercel einrichten
-
-1. Alle Werte aus `.env.example` als Production- und Preview-Variablen setzen. Bei einer Vercel-Supabase-Integration mit dem Ressourcenpräfix `supabase_` verwendet die App automatisch `NEXT_PUBLIC_supabase_SUPABASE_PUBLISHABLE_KEY` und `supabase_SUPABASE_SECRET_KEY`; die manuellen Standardnamen sind dann nicht zusätzlich nötig.
-2. `barrechner.ch`, `www.barrechner.ch` und `*.barrechner.ch` zum Projekt hinzufügen. Für das Wildcard-Zertifikat die von Vercel verlangten Nameserver verwenden.
-3. In Supabase die Produktions-Callback-URL `https://barrechner.ch/auth/callback` erlauben.
-4. `CRON_SECRET` muss in Vercel gesetzt sein; Vercel sendet ihn automatisch als Bearer-Token an den täglichen Cleanup-Endpunkt.
-5. Der Barkarten-Import (OCR und Auswertung) braucht bis zu 120 Sekunden (`maxDuration` im Bar-Editor). Der Vercel-Plan muss Funktionen mit dieser Laufzeit erlauben (mit Fluid Compute auch im Hobby-Plan der Fall).
-
-### E-Mail-Vorlagen in Supabase
-
-Passwort-Reset- und Bestätigungslinks müssen auch funktionieren, wenn sie auf einem anderen Gerät geöffnet werden als dem, auf dem sie angefordert wurden. Dafür verwenden sie `token_hash` statt eines PKCE-Codes. Lokal sind die Vorlagen in `supabase/config.toml` eingetragen; im gehosteten Projekt unter **Authentication → Email Templates** den Link ersetzen:
-
-- **Reset Password:** `<a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=recovery&next=/passwort-neu&verify_email=1">Neues Passwort festlegen</a>`
-- **Magic Link:** `<a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=email&next=/dashboard&verify_email=1">E-Mail-Adresse bestätigen</a>`
-
-Die Site URL muss dafür `https://barrechner.ch` sein.
-
-Die vollständigen Texte liegen in `supabase/templates/`. Alte Links mit `code` funktionieren weiterhin im selben Browser.
-
-Der Secret- beziehungsweise Service-Role-Key wird ausschliesslich serverseitig verwendet und darf nie mit `NEXT_PUBLIC_` beginnen. Neue `sb_secret_…`-Schlüssel werden gegenüber dem alten `service_role`-JWT bevorzugt.
-
-## Produktions-Deployments
-
-Produktions-Deployments laufen über die nativen GitHub-Integrationen von Supabase und Vercel. Dafür sind keine Deployment-Secrets oder eigenen GitHub Actions nötig.
-
-1. In Supabase unter **Project Settings → Integrations → GitHub** das Repository verbinden.
-2. Als Working Directory `.` und als Production Branch `main` auswählen.
-3. **Deploy to production** aktivieren, damit Supabase neue Dateien aus `supabase/migrations` automatisch anwendet.
-4. Die normale GitHub-Integration des Vercel-Projekts aktiviert lassen.
-5. In den Production-Environment-Einstellungen von Vercel unter **Deployment Checks** den Supabase-Produktionsstatus als erforderlichen Check hinzufügen.
-
-Der Deployment Check ist wichtig: Supabase und Vercel reagieren unabhängig auf denselben Push. Vercel darf den fertigen Build erst der Produktionsdomain zuweisen, nachdem die Supabase-Migration erfolgreich abgeschlossen wurde. Schlägt sie fehl, bleibt die bisherige Version live.
-
-Optional kann der Supabase-Preview-Check zusätzlich in den GitHub-Branch-Regeln für `main` als erforderlicher Status Check eingetragen werden. Fehlerhafte Migrationen können dann nicht gemergt werden.
-
-Wurden ältere Migrationen bereits manuell ausgeführt, fehlen aber in der Supabase-Migrationshistorie, müssen sie einmalig vor dem ersten automatischen Deployment als angewendet markiert werden. Noch nicht ausgeführte Migrationen (insbesondere `20260823000000_production_hardening.sql`) dürfen dabei nicht als angewendet markiert werden:
+Requires **Node.js 24.11+** (Alchemy v2 refuses older versions). No Cloudflare account is needed:
+`alchemy dev` runs the Worker in workerd and emulates D1 and R2 locally.
 
 ```bash
-npx supabase@latest migration repair 20260820000000 --status applied
-npx supabase@latest migration repair 20260821000000 --status applied
-npx supabase@latest db push --dry-run
+npm ci
+npm run dev        # http://localhost:1337
 ```
 
-## Datenmodell und Sicherheit
+- Platform: <http://localhost:1337>
+- A bar's calculator: `http://{slug}.localhost:1337` (browsers resolve `*.localhost` automatically)
+- Without `RESEND_API_KEY`, outgoing emails (verification and password-reset links) are printed to the
+  Worker log in `.alchemy/log/local/Website/`.
+- Optional: put `MISTRAL_API_KEY=…` in `.env` to try the menu import locally.
 
-Die Migration enthält alle Tabellen, Indizes, RLS-Regeln und transaktionalen Funktionen. Das Limit von fünf aktiven Bars, Slug-Wechsel, Publish, Archivierung und Wiederherstellung werden in der Datenbank atomar geprüft. Öffentliche Rechner werden serverseitig über den Service-Client gelesen; alle Verwaltungsaktionen prüfen zusätzlich den angemeldeten Benutzer und die RLS-Regeln.
+## Tests
 
-Interne Datenbankfunktionen (`consume_rate_limit`, `purge_expired_data`) sind nur für den Service-Role-Key ausführbar. Bilder werden nur akzeptiert, wenn sie für dieselbe Bar hochgeladen wurden; nicht mehr verwendete Bilder entfernt der tägliche Cleanup nach einem Tag. Besitzer können ihr Konto unter **Konto** samt allen Bars und Bildern löschen.
+```bash
+npm run check                 # tsc + vitest (97 tests) + vite build
+npm run dev:e2e               # terminal 1: alchemy dev with rate limits disabled
+npm run test:e2e              # terminal 2: Playwright end-to-end flows
+```
 
-Bestellungen verlassen das Gerät nicht. Sie werden pro Bar und veröffentlichter Version im Browser gespeichert und bei einer Preislistenänderung sicher verworfen.
+`dev:e2e` sets `DISABLE_RATE_LIMITS=true`, which `alchemy.run.ts` only honours under `alchemy dev`.
+
+## CI/CD
+
+| Workflow | Trigger | What it does |
+| --- | --- | --- |
+| [`ci.yml`](.github/workflows/ci.yml) | pull requests (and called by `deploy.yml`) | typecheck, unit tests, build; Playwright E2E against a local `alchemy dev` stack |
+| [`deploy.yml`](.github/workflows/deploy.yml) | push to `main` | runs CI, then `alchemy deploy --stage prod` (D1 migrations, Worker, routes, DNS) |
+| | PR opened/updated | deploys an isolated preview stage `pr-{n}` on `*.workers.dev` (URL in the job summary) |
+| | PR closed | `alchemy destroy --stage pr-{n}` |
+
+Preview stages have no wildcard subdomains; open a bar's calculator there with `/?bar={slug}`.
+Only the `prod` stage attaches `barrechner.ch` and `*.barrechner.ch`.
+
+## One-time setup (what still has to be done by hand)
+
+### 1. Cloudflare account and plan
+
+1. Create (or pick) a Cloudflare account.
+2. Subscribe to **Workers Paid** ($5/month). The free plan's 10 ms CPU limit per request is too low for
+   PBKDF2 password hashing and for base64-encoding a 10 MB menu upload for Mistral.
+3. Enable **R2** in the dashboard once (R2 → *Purchase/Enable*; the free tier is enough).
+
+### 2. Move the domain to Cloudflare
+
+1. *Websites → Add a site → `barrechner.ch`*, choose the Free plan.
+2. At the registrar, replace the current (Vercel) nameservers with the two Cloudflare nameservers shown.
+   Wait until the zone is **Active**.
+3. In *DNS → Records*, delete any imported records for `barrechner.ch`, `www` and `*` that point at
+   Vercel (A/CNAME). The production deploy creates proxied `AAAA 100::` records for all three and the
+   Worker routes `barrechner.ch/*` and `*.barrechner.ch/*`. Keep MX/TXT records you still need.
+4. *SSL/TLS → Overview*: set the mode to **Full (strict)**. Universal SSL covers the apex and
+   `*.barrechner.ch` (first-level wildcard), which is all the app uses.
+5. Optional but recommended: *SSL/TLS → Edge Certificates → Always Use HTTPS* on.
+
+If you use a different domain, set the GitHub variable `ROOT_DOMAIN` (step 5) and repeat this for it.
+
+### 3. Email (Resend)
+
+1. Create a Resend account, add the domain `barrechner.ch` and add the SPF/DKIM records it shows
+   to the Cloudflare DNS (not proxied). Wait until Resend reports the domain as verified.
+2. Create an API key with *Sending access* → GitHub secret `RESEND_API_KEY`.
+3. The sender defaults to `Barrechner <noreply@barrechner.ch>`; override with the GitHub variable `EMAIL_FROM`.
+
+### 4. Mistral (menu import)
+
+Create an API key at <https://console.mistral.ai> → GitHub secret `MISTRAL_API_KEY`.
+Without it the editor shows the import as "not set up"; everything else works.
+
+### 5. Credentials for GitHub Actions
+
+Alchemy keeps its deployment state in a small state-store Worker in your Cloudflare account
+(`Cloudflare.state()`). It must be bootstrapped once, interactively, before CI can deploy:
+
+```bash
+npm ci
+npx alchemy profile create default      # log in to Cloudflare (OAuth or API token)
+npx alchemy provider cloudflare bootstrap
+```
+
+Then give CI a scoped API token — either automatically:
+
+```bash
+npx alchemy profile create admin        # choose "API Token or API Key" (Global API Key works)
+npx alchemy deploy --config stacks/github.ts --profile admin
+```
+
+which mints the token and writes the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets into
+`TheBromo/barrechner` (it also asks for a GitHub credential) — or by hand: create an account API token
+with **Workers Scripts Write, Workers R2 Storage Write, D1 Write, Secrets Store Write, Account Settings
+Read, Workers Tail Read** on the account and **Zone Read, DNS Write, Workers Routes Write** on the
+zone, and add both secrets under *Settings → Secrets and variables → Actions*.
+
+Secrets and variables used by `deploy.yml`:
+
+| Name | Kind | Required |
+| --- | --- | --- |
+| `CLOUDFLARE_API_TOKEN` | secret | yes |
+| `CLOUDFLARE_ACCOUNT_ID` | secret | yes |
+| `RESEND_API_KEY` | secret | for real emails (otherwise links are only logged) |
+| `MISTRAL_API_KEY` | secret | for the menu import |
+| `ROOT_DOMAIN` | variable | only if not `barrechner.ch` |
+| `EMAIL_FROM` | variable | optional |
+
+The workflows use the GitHub environments `production` and `preview` (created on first use). Add
+required reviewers to `production` if deploys should be approved, and protect `main` with the
+*CI* checks as required status checks.
+
+### 6. First production deploy
+
+Merge this branch into `main` (or run `npx alchemy deploy --stage prod` locally with the same
+environment variables). Afterwards check:
+
+- `https://barrechner.ch` shows the landing page, `https://www.barrechner.ch` redirects to it;
+- sign-up sends a verification email;
+- a published bar is reachable at `https://{slug}.barrechner.ch`;
+- *Workers & Pages → (worker) → Settings → Triggers* lists the cron `17 3 * * *`.
+
+### 7. Migrating from the Supabase/Vercel version
+
+The new version has its own user store. Supabase password hashes (bcrypt) are not portable to the new
+PBKDF2 scheme, so existing owners need to register again (or use "Passwort vergessen" after an
+import of their email addresses). Bar data can be moved by exporting `bars`, `bar_drafts` and
+`bar_revisions` from Supabase and inserting the rows into D1 (`npx wrangler d1 execute` or the D1
+console); the JSON configuration format is unchanged, image URLs must be re-uploaded to R2.
+Once production runs on Cloudflare, remove the Vercel project, its domains and the Supabase project.

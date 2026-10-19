@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  pull_request:
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Typecheck, unit tests, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx vitest run
+      - run: npx vite build
+
+  e2e:
+    name: End-to-end (alchemy dev)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Start local stack (workerd + emulated D1/R2, no Cloudflare account needed)
+        run: |
+          (sleep 3600 | npm run dev:e2e > alchemy-dev.log 2>&1 &)
+          for i in $(seq 1 90); do
+            if curl -sf http://localhost:1337/ > /dev/null; then echo "ready"; exit 0; fi
+            sleep 2
+          done
+          cat alchemy-dev.log
+          exit 1
+      - run: npx playwright test
+        env:
+          CI: "true"
+      - name: Upload logs and traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts
+          path: |
+            alchemy-dev.log
+            .alchemy/log
+            test-results
+          retention-days: 7

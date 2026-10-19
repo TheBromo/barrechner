@@ -10,33 +10,240 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AnmeldenRouteImport } from './routes/anmelden'
+import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as EmailBestaetigenRouteImport } from './routes/email-bestaetigen'
+import { Route as KontoGeloeschtRouteImport } from './routes/konto-geloescht'
+import { Route as ManifestDotwebmanifestRouteImport } from './routes/manifest[.]webmanifest'
+import { Route as PasswortNeuRouteImport } from './routes/passwort-neu'
+import { Route as PasswortVergessenRouteImport } from './routes/passwort-vergessen'
+import { Route as RegistrierenRouteImport } from './routes/registrieren'
+import { Route as ApiSlugAvailabilityRouteImport } from './routes/api/slug-availability'
+import { Route as AuthLinkRouteImport } from './routes/auth.link'
+import { Route as DashboardIndexRouteImport } from './routes/dashboard.index'
+import { Route as DashboardKontoRouteImport } from './routes/dashboard.konto'
+import { Route as ImgSplatRouteImport } from './routes/img.$'
+import { Route as DashboardBarsNeuRouteImport } from './routes/dashboard.bars.neu'
+import { Route as DashboardBarsBarIdIndexRouteImport } from './routes/dashboard.bars.$barId.index'
+import { Route as DashboardBarsBarIdVorschauRouteImport } from './routes/dashboard_.bars.$barId.vorschau'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AnmeldenRoute = AnmeldenRouteImport.update({
+  id: '/anmelden',
+  path: '/anmelden',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmailBestaetigenRoute = EmailBestaetigenRouteImport.update({
+  id: '/email-bestaetigen',
+  path: '/email-bestaetigen',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KontoGeloeschtRoute = KontoGeloeschtRouteImport.update({
+  id: '/konto-geloescht',
+  path: '/konto-geloescht',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ManifestDotwebmanifestRoute = ManifestDotwebmanifestRouteImport.update({
+  id: '/manifest.webmanifest',
+  path: '/manifest.webmanifest',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PasswortNeuRoute = PasswortNeuRouteImport.update({
+  id: '/passwort-neu',
+  path: '/passwort-neu',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PasswortVergessenRoute = PasswortVergessenRouteImport.update({
+  id: '/passwort-vergessen',
+  path: '/passwort-vergessen',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RegistrierenRoute = RegistrierenRouteImport.update({
+  id: '/registrieren',
+  path: '/registrieren',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSlugAvailabilityRoute = ApiSlugAvailabilityRouteImport.update({
+  id: '/api/slug-availability',
+  path: '/api/slug-availability',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthLinkRoute = AuthLinkRouteImport.update({
+  id: '/auth/link',
+  path: '/auth/link',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardIndexRoute = DashboardIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardKontoRoute = DashboardKontoRouteImport.update({
+  id: '/konto',
+  path: '/konto',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const ImgSplatRoute = ImgSplatRouteImport.update({
+  id: '/img/$',
+  path: '/img/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardBarsNeuRoute = DashboardBarsNeuRouteImport.update({
+  id: '/bars/neu',
+  path: '/bars/neu',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardBarsBarIdIndexRoute = DashboardBarsBarIdIndexRouteImport.update({
+  id: '/bars/$barId/',
+  path: '/bars/$barId/',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardBarsBarIdVorschauRoute =
+  DashboardBarsBarIdVorschauRouteImport.update({
+    id: '/dashboard_/bars/$barId/vorschau',
+    path: '/dashboard/bars/$barId/vorschau',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/anmelden': typeof AnmeldenRoute
+  '/dashboard': typeof DashboardRouteWithChildren
+  '/email-bestaetigen': typeof EmailBestaetigenRoute
+  '/konto-geloescht': typeof KontoGeloeschtRoute
+  '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
+  '/passwort-neu': typeof PasswortNeuRoute
+  '/passwort-vergessen': typeof PasswortVergessenRoute
+  '/registrieren': typeof RegistrierenRoute
+  '/api/slug-availability': typeof ApiSlugAvailabilityRoute
+  '/auth/link': typeof AuthLinkRoute
+  '/dashboard/konto': typeof DashboardKontoRoute
+  '/img/$': typeof ImgSplatRoute
+  '/dashboard/': typeof DashboardIndexRoute
+  '/dashboard/bars/neu': typeof DashboardBarsNeuRoute
+  '/dashboard/bars/$barId/vorschau': typeof DashboardBarsBarIdVorschauRoute
+  '/dashboard/bars/$barId/': typeof DashboardBarsBarIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/anmelden': typeof AnmeldenRoute
+  '/email-bestaetigen': typeof EmailBestaetigenRoute
+  '/konto-geloescht': typeof KontoGeloeschtRoute
+  '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
+  '/passwort-neu': typeof PasswortNeuRoute
+  '/passwort-vergessen': typeof PasswortVergessenRoute
+  '/registrieren': typeof RegistrierenRoute
+  '/api/slug-availability': typeof ApiSlugAvailabilityRoute
+  '/auth/link': typeof AuthLinkRoute
+  '/dashboard/konto': typeof DashboardKontoRoute
+  '/img/$': typeof ImgSplatRoute
+  '/dashboard': typeof DashboardIndexRoute
+  '/dashboard/bars/neu': typeof DashboardBarsNeuRoute
+  '/dashboard/bars/$barId/vorschau': typeof DashboardBarsBarIdVorschauRoute
+  '/dashboard/bars/$barId': typeof DashboardBarsBarIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/anmelden': typeof AnmeldenRoute
+  '/dashboard': typeof DashboardRouteWithChildren
+  '/email-bestaetigen': typeof EmailBestaetigenRoute
+  '/konto-geloescht': typeof KontoGeloeschtRoute
+  '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
+  '/passwort-neu': typeof PasswortNeuRoute
+  '/passwort-vergessen': typeof PasswortVergessenRoute
+  '/registrieren': typeof RegistrierenRoute
+  '/api/slug-availability': typeof ApiSlugAvailabilityRoute
+  '/auth/link': typeof AuthLinkRoute
+  '/dashboard/konto': typeof DashboardKontoRoute
+  '/img/$': typeof ImgSplatRoute
+  '/dashboard/': typeof DashboardIndexRoute
+  '/dashboard/bars/neu': typeof DashboardBarsNeuRoute
+  '/dashboard_/bars/$barId/vorschau': typeof DashboardBarsBarIdVorschauRoute
+  '/dashboard/bars/$barId/': typeof DashboardBarsBarIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/anmelden'
+    | '/dashboard'
+    | '/email-bestaetigen'
+    | '/konto-geloescht'
+    | '/manifest.webmanifest'
+    | '/passwort-neu'
+    | '/passwort-vergessen'
+    | '/registrieren'
+    | '/api/slug-availability'
+    | '/auth/link'
+    | '/dashboard/konto'
+    | '/img/$'
+    | '/dashboard/'
+    | '/dashboard/bars/neu'
+    | '/dashboard/bars/$barId/vorschau'
+    | '/dashboard/bars/$barId/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/anmelden'
+    | '/email-bestaetigen'
+    | '/konto-geloescht'
+    | '/manifest.webmanifest'
+    | '/passwort-neu'
+    | '/passwort-vergessen'
+    | '/registrieren'
+    | '/api/slug-availability'
+    | '/auth/link'
+    | '/dashboard/konto'
+    | '/img/$'
+    | '/dashboard'
+    | '/dashboard/bars/neu'
+    | '/dashboard/bars/$barId/vorschau'
+    | '/dashboard/bars/$barId'
+  id:
+    | '__root__'
+    | '/'
+    | '/anmelden'
+    | '/dashboard'
+    | '/email-bestaetigen'
+    | '/konto-geloescht'
+    | '/manifest.webmanifest'
+    | '/passwort-neu'
+    | '/passwort-vergessen'
+    | '/registrieren'
+    | '/api/slug-availability'
+    | '/auth/link'
+    | '/dashboard/konto'
+    | '/img/$'
+    | '/dashboard/'
+    | '/dashboard/bars/neu'
+    | '/dashboard_/bars/$barId/vorschau'
+    | '/dashboard/bars/$barId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AnmeldenRoute: typeof AnmeldenRoute
+  DashboardRoute: typeof DashboardRouteWithChildren
+  EmailBestaetigenRoute: typeof EmailBestaetigenRoute
+  KontoGeloeschtRoute: typeof KontoGeloeschtRoute
+  ManifestDotwebmanifestRoute: typeof ManifestDotwebmanifestRoute
+  PasswortNeuRoute: typeof PasswortNeuRoute
+  PasswortVergessenRoute: typeof PasswortVergessenRoute
+  RegistrierenRoute: typeof RegistrierenRoute
+  ApiSlugAvailabilityRoute: typeof ApiSlugAvailabilityRoute
+  AuthLinkRoute: typeof AuthLinkRoute
+  ImgSplatRoute: typeof ImgSplatRoute
+  DashboardBarsBarIdVorschauRoute: typeof DashboardBarsBarIdVorschauRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +255,153 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/anmelden': {
+      id: '/anmelden'
+      path: '/anmelden'
+      fullPath: '/anmelden'
+      preLoaderRoute: typeof AnmeldenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/email-bestaetigen': {
+      id: '/email-bestaetigen'
+      path: '/email-bestaetigen'
+      fullPath: '/email-bestaetigen'
+      preLoaderRoute: typeof EmailBestaetigenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/konto-geloescht': {
+      id: '/konto-geloescht'
+      path: '/konto-geloescht'
+      fullPath: '/konto-geloescht'
+      preLoaderRoute: typeof KontoGeloeschtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/manifest.webmanifest': {
+      id: '/manifest.webmanifest'
+      path: '/manifest.webmanifest'
+      fullPath: '/manifest.webmanifest'
+      preLoaderRoute: typeof ManifestDotwebmanifestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/passwort-neu': {
+      id: '/passwort-neu'
+      path: '/passwort-neu'
+      fullPath: '/passwort-neu'
+      preLoaderRoute: typeof PasswortNeuRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/passwort-vergessen': {
+      id: '/passwort-vergessen'
+      path: '/passwort-vergessen'
+      fullPath: '/passwort-vergessen'
+      preLoaderRoute: typeof PasswortVergessenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/registrieren': {
+      id: '/registrieren'
+      path: '/registrieren'
+      fullPath: '/registrieren'
+      preLoaderRoute: typeof RegistrierenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/slug-availability': {
+      id: '/api/slug-availability'
+      path: '/api/slug-availability'
+      fullPath: '/api/slug-availability'
+      preLoaderRoute: typeof ApiSlugAvailabilityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/link': {
+      id: '/auth/link'
+      path: '/auth/link'
+      fullPath: '/auth/link'
+      preLoaderRoute: typeof AuthLinkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard/': {
+      id: '/dashboard/'
+      path: '/'
+      fullPath: '/dashboard/'
+      preLoaderRoute: typeof DashboardIndexRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/konto': {
+      id: '/dashboard/konto'
+      path: '/konto'
+      fullPath: '/dashboard/konto'
+      preLoaderRoute: typeof DashboardKontoRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/img/$': {
+      id: '/img/$'
+      path: '/img/$'
+      fullPath: '/img/$'
+      preLoaderRoute: typeof ImgSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard/bars/neu': {
+      id: '/dashboard/bars/neu'
+      path: '/bars/neu'
+      fullPath: '/dashboard/bars/neu'
+      preLoaderRoute: typeof DashboardBarsNeuRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/bars/$barId/': {
+      id: '/dashboard/bars/$barId/'
+      path: '/bars/$barId'
+      fullPath: '/dashboard/bars/$barId/'
+      preLoaderRoute: typeof DashboardBarsBarIdIndexRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard_/bars/$barId/vorschau': {
+      id: '/dashboard_/bars/$barId/vorschau'
+      path: '/dashboard/bars/$barId/vorschau'
+      fullPath: '/dashboard/bars/$barId/vorschau'
+      preLoaderRoute: typeof DashboardBarsBarIdVorschauRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
+interface DashboardRouteChildren {
+  DashboardKontoRoute: typeof DashboardKontoRoute
+  DashboardIndexRoute: typeof DashboardIndexRoute
+  DashboardBarsNeuRoute: typeof DashboardBarsNeuRoute
+  DashboardBarsBarIdIndexRoute: typeof DashboardBarsBarIdIndexRoute
+}
+
+const DashboardRouteChildren: DashboardRouteChildren = {
+  DashboardKontoRoute: DashboardKontoRoute,
+  DashboardIndexRoute: DashboardIndexRoute,
+  DashboardBarsNeuRoute: DashboardBarsNeuRoute,
+  DashboardBarsBarIdIndexRoute: DashboardBarsBarIdIndexRoute,
+}
+
+const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
+  DashboardRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AnmeldenRoute: AnmeldenRoute,
+  DashboardRoute: DashboardRouteWithChildren,
+  EmailBestaetigenRoute: EmailBestaetigenRoute,
+  KontoGeloeschtRoute: KontoGeloeschtRoute,
+  ManifestDotwebmanifestRoute: ManifestDotwebmanifestRoute,
+  PasswortNeuRoute: PasswortNeuRoute,
+  PasswortVergessenRoute: PasswortVergessenRoute,
+  RegistrierenRoute: RegistrierenRoute,
+  ApiSlugAvailabilityRoute: ApiSlugAvailabilityRoute,
+  AuthLinkRoute: AuthLinkRoute,
+  ImgSplatRoute: ImgSplatRoute,
+  DashboardBarsBarIdVorschauRoute: DashboardBarsBarIdVorschauRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

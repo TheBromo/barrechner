@@ -37,6 +37,8 @@ export default Alchemy.Stack(
       yield* optionalSecret("MISTRAL_API_KEY"),
       yield* optionalSecret("RESEND_API_KEY"),
     ) as Record<string, Redacted.Redacted<string>>;
+    // Lets end-to-end tests sign up repeatedly from localhost; never honoured outside `alchemy dev`.
+    const disableRateLimits = dev && (yield* Config.Boolean("DISABLE_RATE_LIMITS").pipe(Config.withDefault(false)));
     const emailFrom = yield* Config.String("EMAIL_FROM").pipe(Config.withDefault(`Barrechner <noreply@${rootDomain}>`));
 
     const db = yield* Cloudflare.D1.Database("Database", { migrations: "./migrations" });
@@ -49,6 +51,7 @@ export default Alchemy.Stack(
         // Only the production stage serves the real domain; previews and dev use their own URL as platform.
         ROOT_DOMAIN: production ? rootDomain : "",
         EMAIL_FROM: emailFrom,
+        ...(disableRateLimits ? { DISABLE_RATE_LIMITS: "true" } : {}),
         ...secrets,
       },
       crons: ["17 3 * * *"],

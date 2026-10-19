@@ -251,7 +251,7 @@ Sections:
   missing prices become empty inputs the owner must fill before saving.
 * Rate limit 10 imports/h. The uploaded file is never kept after processing.
 
-### 5.7 Draft preview (`/dashboard/bars/{id}/preview`)
+### 5.7 Draft preview (`/dashboard/bars/{id}/vorschau`)
 
 The calculator rendered from the **draft**, banner "Entwurfsvorschau" + back
 link, no service worker, separate order storage key.
@@ -335,12 +335,12 @@ separator `’` (`123456` → `"1’234.56"`).
 | Path | Purpose |
 | --- | --- |
 | `/anmelden` | Login (redirects to dashboard if signed in). `?fehler=link` shows `"Dieser Link ist ungültig oder abgelaufen. …"` |
+| `/auth/link` | Landing page of emailed links: one click on "Weiter" redeems the token |
 | `/registrieren` | Sign-up |
 | `/passwort-vergessen` | Request reset link |
 | `/passwort-neu` | Set new password (signed-in only, else → `/passwort-vergessen`) |
 | `/email-bestaetigen` | Verification status + resend + sign out |
 | `/konto-geloescht` | Goodbye page |
-| `/auth/callback` | Email link landing |
 
 ### 7.2 Rules
 
@@ -352,10 +352,13 @@ separator `’` (`123456` → `"1’234.56"`).
 * Password reset request always answers
   `"Falls ein Konto existiert, haben wir einen Link gesendet."` (4/h).
 * Emailed links work on **any device** (no same-browser requirement), are
-  single-use and expire. Following one signs the user in, marks the email as
-  verified and redirects to a safe `next` path (only same-origin relative paths,
-  no `//`, no backslashes; default `/dashboard`). Invalid links →
-  `/anmelden?fehler=link`.
+  single-use and expire (verification 7 days, reset 1 hour). Opening one shows a
+  confirmation page; the token is redeemed only on an explicit click (so mail
+  scanners that prefetch links cannot burn it). Redeeming signs the user in,
+  marks the email as verified and redirects to a safe `next` path (only
+  same-origin relative paths, no `//`, no backslashes; default `/dashboard`).
+  Invalid or used links show `"Dieser Link ist ungültig oder abgelaufen. …"` with
+  a way to request a new one.
 * Changing the password requires the current password **unless** the session
   was created by an emailed link within the last **15 minutes**. New password
   must differ (`"Das neue Passwort muss sich vom bisherigen unterscheiden."`). (6/h)
@@ -435,4 +438,5 @@ Generic pages: not found (`"Seite nicht gefunden"`), error with retry.
 | Images | Supabase Storage + `sharp` | Cloudflare R2, served by the Worker under `/img/…`; resized to WebP in the browser, magic bytes + dimensions verified on the server |
 | Import upload | Signed upload URL to a private bucket | Direct upload to a server function, forwarded to Mistral as a data URL; never stored |
 | Cron | Vercel Cron → HTTP endpoint with bearer secret | Worker Cron Trigger (`scheduled` handler) |
+| Preview deployments | Vercel preview URL (platform only) | `*.workers.dev` URL; calculators open via `/?bar={slug}` (no service worker) |
 | Infrastructure | Dashboard clicks | `alchemy.run.ts` (D1, R2, Worker, routes, DNS, secrets) |

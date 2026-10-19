@@ -10,7 +10,10 @@
     "build": "vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "dev:e2e": "DISABLE_RATE_LIMITS=true alchemy dev --stage local",
+    "test:e2e": "playwright test",
+    "check": "tsc --noEmit && vitest run && vite build"
   },
   "dependencies": {
     "@tanstack/react-router": "^1.170.45",
@@ -22,6 +25,7 @@
     "@alchemy.run/frontend-frameworks": "^2.0.0-beta.83",
     "@cloudflare/workers-types": "^5.20261019.1",
     "@effect/platform-node": "^4.0.5",
+    "@playwright/test": "^1.64.1",
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",

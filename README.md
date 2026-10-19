@@ -45,8 +45,10 @@ npm run build
 
 Passwort-Reset- und Bestätigungslinks müssen auch funktionieren, wenn sie auf einem anderen Gerät geöffnet werden als dem, auf dem sie angefordert wurden. Dafür verwenden sie `token_hash` statt eines PKCE-Codes. Lokal sind die Vorlagen in `supabase/config.toml` eingetragen; im gehosteten Projekt unter **Authentication → Email Templates** den Link ersetzen:
 
-- **Reset Password:** `<a href="{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=recovery">Neues Passwort festlegen</a>`
-- **Magic Link:** `<a href="{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=email">E-Mail-Adresse bestätigen</a>`
+- **Reset Password:** `<a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=recovery&next=/passwort-neu&verify_email=1">Neues Passwort festlegen</a>`
+- **Magic Link:** `<a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=email&next=/dashboard&verify_email=1">E-Mail-Adresse bestätigen</a>`
+
+Die Site URL muss dafür `https://barrechner.ch` sein.
 
 Die vollständigen Texte liegen in `supabase/templates/`. Alte Links mit `code` funktionieren weiterhin im selben Browser.
 

@@ -244,7 +244,8 @@ otp_expiry = 3600
 # sender_name = "Admin"
 
 # Links use token_hash instead of a PKCE code so they also work on another device than the one
-# that requested them. The app's redirect URLs already carry a query string, hence the leading "&".
+# that requested them. They are built from the Site URL: {{ .RedirectTo }} silently falls back to
+# the bare Site URL when a redirect is not allow-listed, which would produce a broken link.
 [auth.email.template.recovery]
 subject = "Barrechner: Passwort zurücksetzen"
 content_path = "./supabase/templates/recovery.html"

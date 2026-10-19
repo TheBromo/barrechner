@@ -12,9 +12,11 @@ type Props = {
   mode: "login" | "signup" | "forgot" | "new-password";
   /** Ask for the current password when the session did not come from a fresh reset link. */
   requireCurrentPassword?: boolean;
+  /** Shown until the form is submitted, e.g. why the user was sent here. */
+  notice?: string;
 };
 
-export default function AuthForm({ title, subtitle, submitLabel, action, mode, requireCurrentPassword = false }: Props) {
+export default function AuthForm({ title, subtitle, submitLabel, action, mode, requireCurrentPassword = false, notice }: Props) {
   const [state, formAction, pending] = useActionState(action, null);
   const passwordRequired = mode === "login" || mode === "signup" || mode === "new-password";
   const emailRequired = mode !== "new-password";
@@ -43,6 +45,7 @@ export default function AuthForm({ title, subtitle, submitLabel, action, mode, r
               <input name="password" type="password" minLength={8} autoComplete={mode === "login" ? "current-password" : "new-password"} required className="field-input" placeholder="Mindestens 8 Zeichen" />
             </label>
           )}
+          {!state && notice && <p role="alert" className="form-message error">{notice}</p>}
           {state?.error && <p role="alert" className="form-message error">{state.error}</p>}
           {state?.success && <p role="status" className="form-message success">{state.success}</p>}
           <button disabled={pending} className="primary-button w-full">{pending ? "Bitte warten…" : submitLabel}</button>

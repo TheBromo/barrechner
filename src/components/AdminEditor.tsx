@@ -14,6 +14,7 @@ import {
   uploadAssetAction,
 } from "@/app/dashboard/actions";
 import { tenantOrigin } from "@/lib/urls";
+import { MAX_ASSET_BYTES } from "@/lib/assets";
 import { isSingleEmoji } from "@/lib/types";
 import BarCardImporter from "./BarCardImporter";
 
@@ -270,10 +271,17 @@ export function IconEditor({ label, value, barId, kind, compact = false, onChang
   }
 
   async function upload(file: File) {
+    if (file.size > MAX_ASSET_BYTES) { window.alert("Das Bild ist grösser als 4 MB."); return; }
     setUploading(true);
-    const data = new FormData(); data.set("file", file);
-    const result = await uploadAssetAction(barId, kind, data);
-    setUploading(false);
+    let result: Awaited<ReturnType<typeof uploadAssetAction>>;
+    try {
+      const data = new FormData(); data.set("file", file);
+      result = await uploadAssetAction(barId, kind, data);
+    } catch {
+      result = { error: "Das Bild konnte nicht hochgeladen werden. Bitte versuche es erneut." };
+    } finally {
+      setUploading(false);
+    }
     if ("error" in result) { window.alert(result.error); return; }
     setCustomEmoji("");
     setEmojiError("");

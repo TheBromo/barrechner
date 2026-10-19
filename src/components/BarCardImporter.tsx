@@ -8,9 +8,6 @@ import {
 } from "@/app/dashboard/actions";
 import type { ImportProposal } from "@/lib/bar-import";
 import { formatPrice } from "@/lib/format";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-
-const BUCKET = "bar-imports";
 const MAX_BYTES = 10 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(["application/pdf", "image/png", "image/jpeg", "image/webp"]);
 
@@ -53,11 +50,13 @@ export default function BarCardImporter({
       const prepared = await prepareBarImportAction(barId, { name: file.name, size: file.size, type: file.type });
       if (!prepared.ok) throw new Error(prepared.error);
       importId = prepared.importId;
-      const supabase = createSupabaseBrowserClient();
-      const { error: uploadError } = await supabase.storage
-        .from(BUCKET)
-        .uploadToSignedUrl(prepared.path, prepared.token, file, { contentType: file.type, upsert: false });
-      if (uploadError) throw new Error("Die Datei konnte nicht hochgeladen werden.");
+      // The signed URL carries its own authorization, so the browser needs no Supabase client or keys.
+      const uploaded = await fetch(prepared.uploadUrl, {
+        method: "PUT",
+        headers: { "content-type": file.type, "x-upsert": "false" },
+        body: file,
+      }).catch(() => null);
+      if (!uploaded?.ok) throw new Error("Die Datei konnte nicht hochgeladen werden.");
 
       setStatus("ocr");
       const processed = await processBarImportAction(barId, prepared.importId);

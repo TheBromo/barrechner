@@ -3,8 +3,11 @@
 import { randomUUID } from "crypto";
 import sharp from "sharp";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { requireUser } from "@/lib/auth";
+import { publicSupabaseEnv } from "@/lib/env";
+import { userMessage } from "@/lib/errors";
+import { BAR_ASSETS_BUCKET, MAX_ASSET_BYTES, assertHostedImages, barAssetFolder } from "@/lib/assets";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { logError } from "@/lib/log";
 import { starterConfig } from "@/lib/seed";
@@ -27,27 +30,16 @@ export type ActionState = { error?: string; success?: string } | null;
 export type SaveResult = { ok: true } | { ok: false; error: string };
 export type UploadResult = { url: string } | { error: string };
 export type PrepareImportResult =
-  | { ok: true; importId: string; path: string; token: string }
+  | { ok: true; importId: string; uploadUrl: string }
   | { ok: false; error: string };
 export type ProcessImportResult =
   | { ok: true; proposal: ImportProposal }
   | { ok: false; error: string };
 
-function errorMessage(error: unknown): string {
-  const record = error && typeof error === "object" ? error as { message?: unknown; code?: unknown } : null;
-  const message = error instanceof Error
-    ? error.message
-    : typeof record?.message === "string" && record.message.trim()
-      ? record.message.trim()
-      : "Unbekannter Fehler";
-  const code = typeof record?.code === "string" ? record.code : "";
-  if (
-    ((code === "42P01" || code === "PGRST205" || /schema cache/i.test(message)) && message.includes("bar_import_uploads")) ||
-    /bucket.*not found|not found.*bucket/i.test(message)
-  ) return "Der Barkarten-Import ist in Supabase noch nicht eingerichtet. Bitte führe die aktuelle Migration aus.";
-  if (message.includes("duplicate key") || message.includes("bars_slug_key")) return "Diese Adresse ist bereits vergeben.";
-  return message;
-}
+const errorMessage = (error: unknown) => userMessage(error);
+
+const ASSET_FORMATS = new Set(["png", "jpeg", "webp"]);
+const MAX_ASSET_PIXELS = 24_000_000;
 
 async function ownedBarExists(barId: string, userId: string): Promise<boolean> {
   const supabase = await createSupabaseServerClient();
@@ -61,6 +53,7 @@ export async function prepareBarImportAction(
 ): Promise<PrepareImportResult> {
   try {
     const user = await requireUser();
+    await enforceRateLimit("bar-import-prepare", 20, 60 * 60);
     if (!isImportMimeType(metadata.type)) throw new Error("Erlaubt sind PDF, PNG, JPEG und WebP.");
     if (!Number.isInteger(metadata.size) || metadata.size <= 0) throw new Error("Die Datei ist leer oder ungültig.");
     if (metadata.size > MAX_IMPORT_BYTES) throw new Error("Die Datei ist grösser als 10 MB.");
@@ -86,8 +79,9 @@ export async function prepareBarImportAction(
       await admin.from("bar_import_uploads").delete().eq("id", importId);
       throw error ?? new Error("Upload konnte nicht vorbereitet werden.");
     }
-    return { ok: true, importId, path: data.path, token: data.token };
+    return { ok: true, importId, uploadUrl: data.signedUrl };
   } catch (error) {
+    unstable_rethrow(error);
     logError("bar.import.prepare", error, { barId });
     return { ok: false, error: errorMessage(error) };
   }
@@ -129,6 +123,7 @@ export async function processBarImportAction(barId: string, importId: string): P
     const proposal = await importBarCard(signed.signedUrl, detectedMime as ImportMimeType);
     return { ok: true, proposal };
   } catch (error) {
+    unstable_rethrow(error);
     logError("bar.import.process", error, { barId, importId });
     return { ok: false, error: errorMessage(error) };
   } finally {
@@ -159,11 +154,13 @@ export async function cancelBarImportAction(barId: string, importId: string): Pr
     await admin.storage.from(BAR_IMPORT_BUCKET).remove([data.storage_path]);
     await admin.from("bar_import_uploads").update({ status: "processing" }).eq("id", importId).eq("owner_id", user.id);
   } catch (error) {
+    unstable_rethrow(error);
     logError("bar.import.cancel", error, { barId, importId });
   }
 }
 
 export async function createBarAction(_state: ActionState, formData: FormData): Promise<ActionState> {
+  let barId = "";
   try {
     await enforceRateLimit("create-bar", 8, 60 * 60);
     await requireUser();
@@ -176,24 +173,27 @@ export async function createBarAction(_state: ActionState, formData: FormData): 
     const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase.rpc("create_bar", { p_slug: slug, p_label: label, p_config: config });
     if (error) throw error;
-    redirect(`/dashboard/bars/${data}`);
+    barId = String(data);
   } catch (error) {
-    if (error && typeof error === "object" && "digest" in error) throw error;
+    unstable_rethrow(error);
     logError("bar.create", error);
     return { error: errorMessage(error) };
   }
+  redirect(`/dashboard/bars/${barId}`);
 }
 
 export async function saveDraftAction(barId: string, configJson: string): Promise<SaveResult> {
   try {
-    await requireUser();
+    const user = await requireUser();
     const config = sanitizeBarConfig(JSON.parse(configJson));
+    assertHostedImages(config, publicSupabaseEnv().url, barAssetFolder(user.id, barId));
     const supabase = await createSupabaseServerClient();
     const { error } = await supabase.rpc("save_bar_draft", { p_bar_id: barId, p_label: config.displayName, p_config: config });
     if (error) throw error;
     revalidatePath(`/dashboard/bars/${barId}`);
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     logError("bar.draft.save", error, { barId });
     return { ok: false, error: errorMessage(error) };
   }
@@ -202,16 +202,17 @@ export async function saveDraftAction(barId: string, configJson: string): Promis
 export async function publishBarAction(barId: string): Promise<SaveResult> {
   try {
     await enforceRateLimit("publish-bar", 20, 60 * 60);
-    await requireUser();
+    const user = await requireUser();
     const supabase = await createSupabaseServerClient();
     const { data: draft, error: draftError } = await supabase.from("bar_drafts").select("config").eq("bar_id", barId).single();
     if (draftError || !draft) throw new Error("Entwurf nicht gefunden.");
-    sanitizeBarConfig(draft.config);
+    assertHostedImages(sanitizeBarConfig(draft.config), publicSupabaseEnv().url, barAssetFolder(user.id, barId));
     const { error } = await supabase.rpc("publish_bar", { p_bar_id: barId });
     if (error) throw error;
     revalidatePath(`/dashboard/bars/${barId}`);
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     logError("bar.publish", error, { barId });
     return { ok: false, error: errorMessage(error) };
   }
@@ -226,12 +227,15 @@ export async function discardDraftAction(barId: string): Promise<SaveResult> {
     revalidatePath(`/dashboard/bars/${barId}`);
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
+    logError("bar.draft.discard", error, { barId });
     return { ok: false, error: errorMessage(error) };
   }
 }
 
 export async function renameBarAction(barId: string, slugInput: string): Promise<SaveResult> {
   try {
+    await enforceRateLimit("rename-bar", 10, 60 * 60);
     await requireUser();
     const slug = validateSlug(slugInput);
     const supabase = await createSupabaseServerClient();
@@ -241,6 +245,8 @@ export async function renameBarAction(barId: string, slugInput: string): Promise
     revalidatePath("/dashboard");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
+    logError("bar.rename", error, { barId });
     return { ok: false, error: errorMessage(error) };
   }
 }
@@ -250,7 +256,10 @@ export async function archiveBarAction(formData: FormData) {
   const barId = String(formData.get("barId") ?? "");
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("archive_bar", { p_bar_id: barId });
-  if (error) throw new Error(errorMessage(error));
+  if (error) {
+    logError("bar.archive", error, { barId });
+    throw new Error(errorMessage(error));
+  }
   revalidatePath("/dashboard");
 }
 
@@ -259,7 +268,10 @@ export async function restoreBarAction(formData: FormData) {
   const barId = String(formData.get("barId") ?? "");
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("restore_bar", { p_bar_id: barId });
-  if (error) throw new Error(errorMessage(error));
+  if (error) {
+    logError("bar.restore", error, { barId });
+    throw new Error(errorMessage(error));
+  }
   revalidatePath("/dashboard");
 }
 
@@ -269,7 +281,7 @@ export async function uploadAssetAction(barId: string, kind: "logo" | "category"
     const user = await requireUser();
     const file = formData.get("file");
     if (!(file instanceof File) || file.size === 0) throw new Error("Keine Datei ausgewählt.");
-    if (file.size > 4 * 1024 * 1024) throw new Error("Das Bild ist grösser als 4 MB.");
+    if (file.size > MAX_ASSET_BYTES) throw new Error("Das Bild ist grösser als 4 MB.");
     if (!new Set(["image/png", "image/jpeg", "image/webp"]).has(file.type)) {
       throw new Error("Erlaubt sind PNG, JPEG und WebP.");
     }
@@ -278,23 +290,27 @@ export async function uploadAssetAction(barId: string, kind: "logo" | "category"
     if (!bar) throw new Error("Bar nicht gefunden.");
 
     const input = Buffer.from(await file.arrayBuffer());
-    const metadata = await sharp(input).metadata();
-    if (!metadata.width || !metadata.height || metadata.width * metadata.height > 24_000_000) {
+    // The browser-supplied MIME type is not proof of the format: sharp sniffs the bytes and would
+    // also decode SVG, HEIF, TIFF and more. Only hand formats we accept to the decoder.
+    const metadata = await sharp(input, { limitInputPixels: MAX_ASSET_PIXELS }).metadata().catch(() => null);
+    if (!metadata || !metadata.format || !ASSET_FORMATS.has(metadata.format)) throw new Error("Erlaubt sind PNG, JPEG und WebP.");
+    if (!metadata.width || !metadata.height || metadata.width * metadata.height > MAX_ASSET_PIXELS) {
       throw new Error("Das Bild hat ungültige oder zu grosse Abmessungen.");
     }
-    const output = await sharp(input).rotate().resize({ width: kind === "logo" ? 800 : 1200, height: kind === "logo" ? 800 : 1200, fit: "inside", withoutEnlargement: true }).webp({ quality: 84 }).toBuffer();
-    const path = `${user.id}/${barId}/${randomUUID()}.webp`;
+    const output = await sharp(input, { limitInputPixels: MAX_ASSET_PIXELS }).rotate().resize({ width: kind === "logo" ? 800 : 1200, height: kind === "logo" ? 800 : 1200, fit: "inside", withoutEnlargement: true }).webp({ quality: 84 }).toBuffer();
+    const path = `${barAssetFolder(user.id, barId)}${randomUUID()}.webp`;
     const admin = createSupabaseAdminClient();
-    const { error: uploadError } = await admin.storage.from("bar-assets").upload(path, output, { contentType: "image/webp", upsert: false, cacheControl: "31536000" });
+    const { error: uploadError } = await admin.storage.from(BAR_ASSETS_BUCKET).upload(path, output, { contentType: "image/webp", upsert: false, cacheControl: "31536000" });
     if (uploadError) throw uploadError;
-    const { data: publicUrl } = admin.storage.from("bar-assets").getPublicUrl(path);
+    const { data: publicUrl } = admin.storage.from(BAR_ASSETS_BUCKET).getPublicUrl(path);
     const { error: assetError } = await admin.from("assets").insert({ owner_id: user.id, bar_id: barId, storage_path: path, public_url: publicUrl.publicUrl, kind });
     if (assetError) {
-      await admin.storage.from("bar-assets").remove([path]);
+      await admin.storage.from(BAR_ASSETS_BUCKET).remove([path]);
       throw assetError;
     }
     return { url: publicUrl.publicUrl };
   } catch (error) {
+    unstable_rethrow(error);
     logError("asset.upload", error, { barId, kind });
     return { error: errorMessage(error) };
   }

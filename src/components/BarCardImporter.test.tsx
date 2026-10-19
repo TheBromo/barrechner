@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const actions = vi.hoisted(() => ({
   prepare: vi.fn(),
@@ -15,17 +15,17 @@ vi.mock("@/app/dashboard/actions", () => ({
   processBarImportAction: actions.process,
   cancelBarImportAction: actions.cancel,
 }));
-vi.mock("@/lib/supabase/client", () => ({
-  createSupabaseBrowserClient: () => ({ storage: { from: () => ({ uploadToSignedUrl: actions.upload }) } }),
-}));
 
 import BarCardImporter from "./BarCardImporter";
 
 describe("bar-card importer", () => {
+  afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+
   beforeEach(() => {
     Object.values(actions).forEach((mock) => mock.mockReset());
-    actions.prepare.mockResolvedValue({ ok: true, importId: "import-1", path: "owner/bar/import.pdf", token: "token" });
-    actions.upload.mockResolvedValue({ error: null });
+    actions.prepare.mockResolvedValue({ ok: true, importId: "import-1", uploadUrl: "https://storage.test/upload/sign/bar-imports/owner/bar/import.pdf?token=t" });
+    actions.upload.mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", actions.upload);
     actions.process.mockResolvedValue({
       ok: true,
       proposal: {
@@ -51,6 +51,21 @@ describe("bar-card importer", () => {
     fireEvent.click(apply);
 
     await waitFor(() => expect(onApply).toHaveBeenCalledWith(expect.objectContaining({ warnings: expect.any(Array) }), "append"));
+    expect(actions.upload).toHaveBeenCalledWith(
+      "https://storage.test/upload/sign/bar-imports/owner/bar/import.pdf?token=t",
+      expect.objectContaining({ method: "PUT" }),
+    );
+  });
+
+  it("cancels the prepared import when the storage upload fails", async () => {
+    actions.upload.mockResolvedValue(new Response(null, { status: 400 }));
+    const { container } = render(<BarCardImporter barId="bar-1" onApply={() => true} />);
+    const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    fireEvent.change(fileInput, { target: { files: [new File(["%PDF-1.7"], "karte.pdf", { type: "application/pdf" })] } });
+
+    await waitFor(() => expect(actions.cancel).toHaveBeenCalledWith("bar-1", "import-1"));
+    expect(screen.getByRole("alert").textContent).toContain("nicht hochgeladen");
+    expect(actions.process).not.toHaveBeenCalled();
   });
 
   it("rejects unsupported files before preparing an upload", () => {

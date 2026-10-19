@@ -10,9 +10,11 @@ type Props = {
   submitLabel: string;
   action: (state: AuthState, formData: FormData) => Promise<AuthState>;
   mode: "login" | "signup" | "forgot" | "new-password";
+  /** Ask for the current password when the session did not come from a fresh reset link. */
+  requireCurrentPassword?: boolean;
 };
 
-export default function AuthForm({ title, subtitle, submitLabel, action, mode }: Props) {
+export default function AuthForm({ title, subtitle, submitLabel, action, mode, requireCurrentPassword = false }: Props) {
   const [state, formAction, pending] = useActionState(action, null);
   const passwordRequired = mode === "login" || mode === "signup" || mode === "new-password";
   const emailRequired = mode !== "new-password";
@@ -31,6 +33,11 @@ export default function AuthForm({ title, subtitle, submitLabel, action, mode }:
               <input name="email" type="email" autoComplete="email" required className="field-input" placeholder="du@beispiel.ch" />
             </label>
           )}
+          {requireCurrentPassword && (
+            <label className="field-label">Aktuelles Passwort
+              <input name="currentPassword" type="password" autoComplete="current-password" required className="field-input" />
+            </label>
+          )}
           {passwordRequired && (
             <label className="field-label">{mode === "new-password" ? "Neues Passwort" : "Passwort"}
               <input name="password" type="password" minLength={8} autoComplete={mode === "login" ? "current-password" : "new-password"} required className="field-input" placeholder="Mindestens 8 Zeichen" />
@@ -44,7 +51,8 @@ export default function AuthForm({ title, subtitle, submitLabel, action, mode }:
         <div className="mt-6 flex flex-wrap gap-x-4 gap-y-2 text-sm text-slate-600">
           {mode === "login" && <><Link href="/registrieren">Konto erstellen</Link><Link href="/passwort-vergessen">Passwort vergessen?</Link></>}
           {mode === "signup" && <Link href="/anmelden">Bereits registriert?</Link>}
-          {(mode === "forgot" || mode === "new-password") && <Link href="/anmelden">Zur Anmeldung</Link>}
+          {mode === "forgot" && <Link href="/anmelden">Zur Anmeldung</Link>}
+          {mode === "new-password" && <Link href="/dashboard">Zurück zur Übersicht</Link>}
         </div>
       </section>
     </main>

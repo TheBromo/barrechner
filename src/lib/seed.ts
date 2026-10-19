@@ -1,6 +1,8 @@
 import type { BarConfig } from "./types";
 
-export function starterConfig(displayName = "Meine Bar"): BarConfig {
+export const DEFAULT_THEME = { background: "#101a17", accent: "#f3ba45" };
+
+export function starterConfig(displayName = "Meine Bar", theme = DEFAULT_THEME): BarConfig {
   return {
     schemaVersion: 1,
     revision: 0,
@@ -8,7 +10,7 @@ export function starterConfig(displayName = "Meine Bar"): BarConfig {
     displayName,
     logoUrl: "",
     logoEmoji: "",
-    theme: { background: "#101a17", accent: "#f3ba45" },
+    theme: { ...theme },
     categories: [
       {
         id: "bier",
@@ -26,15 +28,7 @@ export function starterConfig(displayName = "Meine Bar"): BarConfig {
         image: "",
         emoji: "🍷",
         drinks: [
-          {
-            id: "weisswein",
-            name: "Weisswein",
-            active: true,
-            variants: [
-              { id: "1dl", label: "1 dl", price: 600 },
-              { id: "75cl", label: "75 cl", price: 3600 },
-            ],
-          },
+          { id: "weisswein", name: "Weisswein", active: true, variants: [{ id: "1dl", label: "1 dl", price: 600 }, { id: "75cl", label: "75 cl", price: 3600 }] },
         ],
       },
       {
@@ -50,5 +44,3 @@ export function starterConfig(displayName = "Meine Bar"): BarConfig {
     ],
   };
 }
-
-export const seedMenu = starterConfig;

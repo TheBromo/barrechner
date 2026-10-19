@@ -1,73 +1,39 @@
-"use client";
-
 import { useRef, useState } from "react";
-import {
-  cancelBarImportAction,
-  prepareBarImportAction,
-  processBarImportAction,
-} from "@/app/dashboard/actions";
-import type { ImportProposal } from "@/lib/bar-import";
-import { formatPrice } from "@/lib/format";
-const MAX_BYTES = 10 * 1024 * 1024;
-const ALLOWED_TYPES = new Set(["application/pdf", "image/png", "image/jpeg", "image/webp"]);
+import type { ImportProposal } from "~/lib/bar-import";
+import { IMPORT_MIME_TYPES, MAX_IMPORT_BYTES } from "~/lib/bar-import";
+import { formatPrice } from "~/lib/format";
+import type { Result } from "~/lib/result";
 
-type ImportMode = "replace" | "append";
-type ImportStatus = "idle" | "uploading" | "ocr";
+export type ImportMode = "replace" | "append";
+export type ImportFile = (file: File) => Promise<Result<{ proposal: ImportProposal }>>;
 
-export default function BarCardImporter({
-  barId,
-  onApply,
-}: {
-  barId: string;
-  onApply: (proposal: ImportProposal, mode: ImportMode) => boolean;
-}) {
+type Props = { enabled: boolean; importFile: ImportFile; onApply: (proposal: ImportProposal, mode: ImportMode) => boolean };
+
+export default function BarCardImporter({ enabled, importFile, onApply }: Props) {
   const input = useRef<HTMLInputElement>(null);
-  const [status, setStatus] = useState<ImportStatus>("idle");
+  const [busy, setBusy] = useState(false);
   const [fileName, setFileName] = useState("");
   const [error, setError] = useState("");
   const [proposal, setProposal] = useState<ImportProposal | null>(null);
   const [mode, setMode] = useState<ImportMode>("replace");
   const [acknowledged, setAcknowledged] = useState(false);
-  const busy = status !== "idle";
 
-  async function importFile(file: File) {
+  async function start(file: File) {
     setError("");
     setProposal(null);
     setAcknowledged(false);
     setFileName(file.name);
-    if (!ALLOWED_TYPES.has(file.type)) {
-      setError("Erlaubt sind PDF, PNG, JPEG und WebP.");
-      return;
-    }
-    if (file.size <= 0 || file.size > MAX_BYTES) {
-      setError("Die Datei muss zwischen 1 Byte und 10 MB gross sein.");
-      return;
-    }
-
-    let importId = "";
+    if (!(IMPORT_MIME_TYPES as readonly string[]).includes(file.type)) { setError("Erlaubt sind PDF, PNG, JPEG und WebP."); return; }
+    if (file.size <= 0 || file.size > MAX_IMPORT_BYTES) { setError("Die Datei muss zwischen 1 Byte und 10 MB gross sein."); return; }
+    setBusy(true);
     try {
-      setStatus("uploading");
-      const prepared = await prepareBarImportAction(barId, { name: file.name, size: file.size, type: file.type });
-      if (!prepared.ok) throw new Error(prepared.error);
-      importId = prepared.importId;
-      // The signed URL carries its own authorization, so the browser needs no Supabase client or keys.
-      const uploaded = await fetch(prepared.uploadUrl, {
-        method: "PUT",
-        headers: { "content-type": file.type, "x-upsert": "false" },
-        body: file,
-      }).catch(() => null);
-      if (!uploaded?.ok) throw new Error("Die Datei konnte nicht hochgeladen werden.");
-
-      setStatus("ocr");
-      const processed = await processBarImportAction(barId, prepared.importId);
-      importId = "";
-      if (!processed.ok) throw new Error(processed.error);
-      setProposal(processed.proposal);
-    } catch (caught) {
-      if (importId) await cancelBarImportAction(barId, importId);
-      setError(caught instanceof Error ? caught.message : "Import fehlgeschlagen.");
+      const result = await importFile(file);
+      if (result.ok) setProposal(result.proposal);
+      else setError(result.error);
+    } catch {
+      setError("Import fehlgeschlagen.");
     } finally {
-      setStatus("idle");
+      setBusy(false);
       if (input.current) input.current.value = "";
     }
   }
@@ -86,35 +52,25 @@ export default function BarCardImporter({
     <section className="import-panel" aria-labelledby="bar-import-title">
       <div className="section-heading">
         <span>AI</span>
-        <div>
-          <h2 id="bar-import-title">Barkarte importieren</h2>
-          <p>PDF oder Foto hochladen, automatisch erkennen und vor dem Übernehmen prüfen.</p>
-        </div>
+        <div><h2 id="bar-import-title">Barkarte importieren</h2><p>PDF oder Foto hochladen, automatisch erkennen und vor dem Übernehmen prüfen.</p></div>
       </div>
-
-      <button
-        type="button"
-        className="import-dropzone"
-        disabled={busy}
-        onClick={() => input.current?.click()}
-        onDragOver={(event) => event.preventDefault()}
-        onDrop={(event) => {
-          event.preventDefault();
-          const file = event.dataTransfer.files[0];
-          if (file && !busy) void importFile(file);
-        }}
-      >
-        <strong>{status === "uploading" ? "Datei wird hochgeladen…" : status === "ocr" ? "Text und Kategorien werden erkannt…" : "PDF oder Bild auswählen"}</strong>
-        <span>{fileName || "PDF, PNG, JPEG oder WebP · max. 10 MB / 20 Seiten"}</span>
-      </button>
-      <input
-        ref={input}
-        hidden
-        type="file"
-        accept="application/pdf,image/png,image/jpeg,image/webp"
-        onChange={(event) => { const file = event.target.files?.[0]; if (file) void importFile(file); }}
-      />
-      <p className="import-privacy">Die Datei wird zur Erkennung an Mistral AI übermittelt und danach aus dem temporären Speicher gelöscht.</p>
+      {!enabled ? (
+        <p className="import-disabled">Der Import ist auf dieser Installation nicht eingerichtet.</p>
+      ) : (
+        <>
+          <button
+            type="button" className="import-dropzone" disabled={busy}
+            onClick={() => input.current?.click()}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => { event.preventDefault(); const file = event.dataTransfer.files[0]; if (file && !busy) void start(file); }}
+          >
+            <strong>{busy ? "Text und Kategorien werden erkannt…" : "PDF oder Bild auswählen"}</strong>
+            <span>{fileName || "PDF, PNG, JPEG oder WebP · max. 10 MB / 20 Seiten"}</span>
+          </button>
+          <input ref={input} hidden type="file" aria-label="Barkarte hochladen" accept={IMPORT_MIME_TYPES.join(",")} onChange={(event) => { const file = event.target.files?.[0]; if (file) void start(file); }} />
+          <p className="import-privacy">Die Datei wird zur Erkennung an Mistral AI übermittelt und danach aus dem temporären Speicher gelöscht.</p>
+        </>
+      )}
       {error && <p className="import-error" role="alert">{error}</p>}
 
       {proposal && (
@@ -123,7 +79,6 @@ export default function BarCardImporter({
             <div><strong>Erkannter Vorschlag</strong><span>{proposal.categories.length} Kategorien · {itemCount} Getränke</span></div>
             <button type="button" className="text-button danger" onClick={() => setProposal(null)}>Verwerfen</button>
           </div>
-
           {proposal.warnings.length > 0 && (
             <div className="import-warnings" role="status">
               <strong>{proposal.warnings.length} Hinweise prüfen</strong>
@@ -131,7 +86,6 @@ export default function BarCardImporter({
               <label><input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} /> Ich habe die unsicheren Zuordnungen geprüft.</label>
             </div>
           )}
-
           <div className="import-category-list">
             {proposal.categories.map((category) => (
               <article key={category.id} className="import-category">
@@ -147,7 +101,6 @@ export default function BarCardImporter({
               </article>
             ))}
           </div>
-
           <fieldset className="import-mode">
             <legend>Übernehmen als</legend>
             <label><input type="radio" name="import-mode" value="replace" checked={mode === "replace"} onChange={() => setMode("replace")} /> Bestehende Kategorien ersetzen</label>

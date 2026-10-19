@@ -1,23 +1,33 @@
-export const DEFAULT_ROOT_DOMAIN = "barrechner.ch";
+import { hostnameWithoutPort } from "./hostname";
 
-export function configuredRootDomain(value = process.env.NEXT_PUBLIC_ROOT_DOMAIN): string {
-  const candidate = value?.trim();
-  if (!candidate) return DEFAULT_ROOT_DOMAIN;
+/** Where the platform and the calculators live, derived once per request on the server. */
+export type Origins = {
+  /** e.g. "https://barrechner.ch" */
+  platform: string;
+  /** Root domain shown in addresses, e.g. "barrechner.ch" or "localhost:1337". */
+  displayDomain: string;
+  /** Template for a bar's calculator; "{slug}" is replaced. */
+  tenantTemplate: string;
+};
 
-  try {
-    const url = new URL(candidate.includes("://") ? candidate : `https://${candidate}`);
-    return url.hostname.toLowerCase().replace(/\.$/, "") || DEFAULT_ROOT_DOMAIN;
-  } catch {
-    return DEFAULT_ROOT_DOMAIN;
+export function originsFor(requestUrl: string, rootDomain: string): Origins {
+  const url = new URL(requestUrl);
+  if (rootDomain) {
+    return { platform: `https://${rootDomain}`, displayDomain: rootDomain, tenantTemplate: `https://{slug}.${rootDomain}` };
   }
+  const host = hostnameWithoutPort(url.host);
+  if (host === "localhost" || host.endsWith(".localhost") || host === "127.0.0.1") {
+    const port = url.port ? `:${url.port}` : "";
+    return { platform: `${url.protocol}//localhost${port}`, displayDomain: `localhost${port}`, tenantTemplate: `${url.protocol}//{slug}.localhost${port}` };
+  }
+  // Preview deployments have no wildcard subdomains; calculators are opened with ?bar={slug}.
+  return { platform: url.origin, displayDomain: url.host, tenantTemplate: `${url.origin}/?bar={slug}` };
 }
 
-export function platformOrigin(): string {
-  if (process.env.NODE_ENV === "development") return "http://localhost:3000";
-  return `https://${configuredRootDomain()}`;
+export function tenantUrl(origins: Origins, slug: string): string {
+  return origins.tenantTemplate.replace("{slug}", slug);
 }
 
-export function tenantOrigin(slug: string): string {
-  if (process.env.NODE_ENV === "development") return `http://${slug}.localhost:3000`;
-  return `https://${slug}.${configuredRootDomain()}`;
+export function tenantAddress(origins: Origins, slug: string): string {
+  return origins.tenantTemplate.includes("?bar=") ? `${origins.displayDomain}/?bar=${slug}` : `${slug}.${origins.displayDomain}`;
 }

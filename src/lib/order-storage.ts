@@ -1,12 +1,10 @@
-export type OrderLine = {
-  key: string;
-  drinkName: string;
-  variantLabel: string;
-  price: number;
-  qty: number;
-};
+export type OrderLine = { key: string; drinkName: string; variantLabel: string; price: number; qty: number };
 
 type StoredOrder = { revision: number; lines: OrderLine[] };
+
+export function orderStorageKey(slug: string): string {
+  return `barrechner-order:${slug}`;
+}
 
 export function decodeStoredOrder(raw: string | null, revision: number): { lines: OrderLine[]; stale: boolean } {
   if (!raw) return { lines: [], stale: false };

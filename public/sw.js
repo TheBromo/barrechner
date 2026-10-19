@@ -1,5 +1,5 @@
 // Bumping the version drops caches written by earlier workers, which cached every same-origin GET.
-const CACHE = "barrechner-shell-v2";
+const CACHE = "barrechner-shell-v3";
 // On flaky event Wi-Fi, fall back to the cached calculator instead of waiting for a stalled request.
 const NAVIGATION_TIMEOUT_MS = 3500;
 
@@ -14,7 +14,7 @@ self.addEventListener("activate", (event) => event.waitUntil((async () => {
 function isCacheable(url, destination) {
   if (destination === "image") return true;
   if (url.origin !== self.location.origin) return false;
-  return url.pathname.startsWith("/_next/static/") || /^\/(?:icon-\d+\.png|apple-icon\.png|icon\.png)$/.test(url.pathname);
+  return url.pathname.startsWith("/assets/") || /^\/(?:icon-\d+\.png)$/.test(url.pathname);
 }
 
 async function putIfOk(cache, key, response) {

@@ -38,11 +38,7 @@ function minimumContrast(color: string, backgrounds: string[]): number {
 /** Preserve a requested color when possible, otherwise move it minimally toward readable dark or light ink. */
 export function readableColor(color: string, backgrounds: string[], minimum = 4.5): string {
   if (minimumContrast(color, backgrounds) >= minimum) return color.toLowerCase();
-
-  const targets = ["#000000", "#ffffff"] as const;
-  let bestTarget: (typeof targets)[number] = targets[0];
-  if (minimumContrast(targets[1], backgrounds) > minimumContrast(targets[0], backgrounds)) bestTarget = targets[1];
-
+  const bestTarget = minimumContrast("#ffffff", backgrounds) > minimumContrast("#000000", backgrounds) ? "#ffffff" : "#000000";
   if (minimumContrast(bestTarget, backgrounds) < minimum) return bestTarget;
   let low = 0;
   let high = 1;

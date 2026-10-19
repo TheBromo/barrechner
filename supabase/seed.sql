@@ -1,2 +1,0 @@
--- The application creates a neutral starter configuration through create_bar().
--- Create test users through Supabase Auth, then use the normal dashboard flow.

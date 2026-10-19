@@ -243,6 +243,17 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
+# Links use token_hash instead of a PKCE code so they also work on another device than the one
+# that requested them. They are built from the Site URL: {{ .RedirectTo }} silently falls back to
+# the bare Site URL when a redirect is not allow-listed, which would produce a broken link.
+[auth.email.template.recovery]
+subject = "Barrechner: Passwort zurücksetzen"
+content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.magic_link]
+subject = "Barrechner: E-Mail-Adresse bestätigen"
+content_path = "./supabase/templates/magic_link.html"
+
 # Uncomment to customize email template
 # [auth.email.template.invite]
 # subject = "You have been invited"

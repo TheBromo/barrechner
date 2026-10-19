@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import type { BarConfig, BarSummary } from "@/lib/types";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -71,7 +72,8 @@ export type PublicBarResult =
   | { kind: "archived" }
   | { kind: "missing" };
 
-export async function getPublicBar(slug: string): Promise<PublicBarResult> {
+// Deduplicated per request: metadata and the page both need the same bar.
+export const getPublicBar = cache(async (slug: string): Promise<PublicBarResult> => {
   const supabase = createSupabaseAdminClient();
   const { data } = await supabase
     .from("bars")
@@ -103,4 +105,4 @@ export async function getPublicBar(slug: string): Promise<PublicBarResult> {
     slug: data.slug,
     config: { ...revision.config, revision: revision.version },
   };
-}
+});

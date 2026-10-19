@@ -7,7 +7,8 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
+vi.mock("next/navigation", () => ({ redirect: vi.fn(), unstable_rethrow: vi.fn() }));
+vi.mock("@/lib/env", () => ({ publicSupabaseEnv: () => ({ url: "https://project.supabase.co", publishableKey: "key" }) }));
 vi.mock("@/lib/auth", () => ({ requireUser: vi.fn().mockResolvedValue({ id: "user-1" }) }));
 vi.mock("@/lib/rate-limit", () => ({ enforceRateLimit: vi.fn() }));
 vi.mock("@/lib/log", () => ({ logError: mocks.logError }));
@@ -58,7 +59,7 @@ describe("bar import action errors", () => {
     });
   });
 
-  it("preserves useful messages from other plain error objects", async () => {
+  it("hides internal messages from other backend errors", async () => {
     mocks.adminFrom.mockReturnValue({
       insert: vi.fn().mockResolvedValue({ error: { message: "Speicher vorübergehend nicht erreichbar", code: "503" } }),
     });
@@ -69,7 +70,7 @@ describe("bar import action errors", () => {
       type: "application/pdf",
     });
 
-    expect(result).toEqual({ ok: false, error: "Speicher vorübergehend nicht erreichbar" });
+    expect(result).toEqual({ ok: false, error: "Ein unerwarteter Fehler ist aufgetreten. Bitte versuche es erneut." });
   });
 
   it("turns PostgREST schema-cache errors into a migration instruction", async () => {

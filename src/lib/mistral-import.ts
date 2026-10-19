@@ -126,6 +126,7 @@ export async function importBarCard(downloadUrl: string, mimeType: ImportMimeTyp
   const ocrResponse = await mistralFetch("/ocr", {
     model: "mistral-ocr-latest",
     document,
+    // Zero-based and inclusive: one page more than the limit, so oversized documents are detected.
     pages: `0-${MAX_IMPORT_PAGES}`,
     include_blocks: true,
     confidence_scores_granularity: "block",
